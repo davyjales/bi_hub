@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Visteon BI's Hub</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+  <link rel="stylesheet" href="/css/hub-theme.css">
+</head>
+<body class="h-full antialiased">
+
+  <div class="flex h-screen min-h-0">
+
+    <!-- SIDEBAR: raiz + coluna MPL ao expandir -->
+    <aside class="hub-sidebar flex shrink-0 min-h-0 border-r border-[var(--panel-border)]">
+      <div class="flex w-72 shrink-0 flex-col min-h-0 border-r border-[var(--panel-border)] bg-[var(--panel-bg)]">
+      <div class="hub-brand-bar flex items-center px-6 border-b shrink-0">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="hub-brand-logo flex h-10 w-10 shrink-0 items-center justify-center rounded-xl overflow-hidden" title="Visteon">
+            <img src="/images/visteon-logo.png" alt="Visteon" class="h-full w-full object-contain p-1" width="40" height="40" decoding="async">
+          </div>
+          <div class="min-w-0">
+            <h1 class="text-lg font-bold tracking-tight leading-tight truncate">
+              <span class="text-[var(--text-primary)]">Visteon</span>
+              <span class="hub-title-accent"> BI's Hub</span>
+            </h1>
+            <p class="text-[10px] uppercase hub-section-label font-semibold">Inteligência de negócio</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto min-h-0 px-6 py-5">
+        <h2 class="text-xs font-bold hub-section-label mb-3">Áreas</h2>
+        <div id="areas-list" class="space-y-0.5"></div>
+      </div>
+
+      <div class="shrink-0 px-6 py-4 border-t border-[var(--panel-border)] text-[11px] hub-section-label space-y-1">
+        <p>P:\2026\20 - Power BI · previews em <span class="font-mono text-[10px]">previews/</span></p>
+        <p>Autenticação: servidor Node (<span class="font-mono text-[10px]">server/</span>), URL <span class="font-mono text-[10px]">http://localhost:3000</span> por defeito · base MySQL (XAMPP).</p>
+      </div>
+      </div>
+
+      <div id="mpl-sub-aside" class="w-56 shrink-0 min-h-0 bg-[var(--panel-bg)]" aria-hidden="true">
+        <div class="hub-brand-bar flex min-h-[4rem] items-center border-b border-[var(--panel-border)] px-4 shrink-0">
+          <div class="min-w-0">
+            <p class="text-[10px] font-bold uppercase tracking-wider hub-section-label">Dentro de MPL</p>
+            <p class="text-sm font-semibold leading-tight truncate text-[var(--text-primary)]">Subpastas</p>
+          </div>
+        </div>
+        <div class="hub-mpl-sub flex-1 overflow-y-auto min-h-0 px-3 py-4">
+          <div id="mpl-sub-list" class="space-y-0.5"></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <div class="flex-1 flex flex-col min-w-0 min-h-0">
+
+      <header class="hub-header-row flex w-full min-w-0 items-center justify-between gap-4 px-6 border-b shrink-0">
+        <div class="min-w-0 flex-1 flex justify-start pr-2">
+          <div class="relative w-full max-w-xl">
+            <input
+              id="search-input"
+              type="text"
+              placeholder="Buscar relatórios..."
+              class="hub-search w-full rounded-xl py-2.5 pl-10 pr-4 text-sm"
+              autocomplete="off"
+            >
+            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-sm pointer-events-none"></i>
+          </div>
+        </div>
+
+        <div class="flex shrink-0 items-center gap-2 sm:gap-3">
+          <a
+            id="hub-admin-link"
+            href="/admin.html"
+            class="hidden text-[11px] sm:text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] hover:text-[var(--v-orange)]"
+          >
+            Admin
+          </a>
+          <a
+            href="/auth/logout"
+            class="text-[11px] sm:text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] hover:text-[var(--v-orange)]"
+          >
+            Sair
+          </a>
+          <button
+            type="button"
+            id="theme-toggle"
+            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--panel-border)] text-[var(--text-muted)] transition-colors hover:border-[var(--v-orange)] hover:text-[var(--v-orange)]"
+            aria-label="Alternar tema"
+          >
+            <i id="theme-icon" class="fa-solid fa-moon text-base"></i>
+          </button>
+          <div class="flex items-center gap-2 border-l border-[var(--panel-border)] pl-2 sm:pl-4">
+            <div class="hidden min-w-0 text-right sm:block">
+              <p id="hub-user-name" class="truncate text-sm font-medium leading-tight text-[var(--text-primary)]">—</p>
+              <p id="hub-user-role" class="text-xs hub-section-label leading-tight">—</p>
+            </div>
+            <div
+              id="hub-user-avatar"
+              class="hub-logo-mark flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-semibold text-white sm:h-10 sm:w-10 uppercase"
+              aria-hidden="true"
+            >
+              ??
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main class="flex-1 overflow-y-auto min-h-0 p-6 sm:p-8">
+        <div id="launcher-helper-banner" class="hidden mb-5 rounded-xl border border-amber-500/35 bg-amber-500/[0.08] px-4 py-3 text-sm text-[var(--text-primary)]">
+          <div class="flex gap-3 items-start">
+            <i class="fa-solid fa-circle-info text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" aria-hidden="true"></i>
+            <div class="min-w-0 flex-1">
+              <p class="font-semibold text-[var(--text-primary)]">Abrir relatórios sem a Microsoft Store</p>
+              <p class="mt-1 text-xs hub-section-label leading-relaxed">O navegador costuma tratar links <span class="font-mono">file://</span> para <span class="font-mono">.pbix</span> de forma errada. Execute <span class="font-mono text-[11px] text-[var(--text-primary)]">BI-Hub-Helper.ps1</span> nesta pasta (clique direito → Executar com PowerShell) e deixe a janela aberta; ao abrir um BI, só uma <strong>nova guia</strong> mostra a confirmação — o hub permanece nesta.</p>
+            </div>
+            <button type="button" id="launcher-helper-banner-dismiss" class="shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-[var(--text-muted)] hover:bg-[var(--input-bg)] hover:text-[var(--text-primary)]" aria-label="Fechar aviso">Fechar</button>
+          </div>
+        </div>
+        <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-6">
+          <h2 id="area-title" class="text-2xl sm:text-3xl font-semibold tracking-tight">Todos os Relatórios</h2>
+          <p class="text-sm hub-section-label">Acesso centralizado aos relatórios por área</p>
+        </div>
+
+        <div id="reports-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"></div>
+      </main>
+    </div>
+  </div>
+
+  <script src="/js/hub-app.js"></script>
+</body>
+</html>

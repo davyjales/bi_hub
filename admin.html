@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Administração — Visteon BI Hub</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <style>
+    .admin-main {
+      width: 100%;
+      max-width: none;
+    }
+
+    .admin-main > .hub-shell-card {
+      width: 100%;
+      max-width: none;
+    }
+  </style>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+  <link rel="stylesheet" href="/css/hub-theme.css">
+</head>
+<body class="min-h-screen antialiased">
+  <div class="sticky top-0 z-50 hub-header-row border-b flex items-center px-6 gap-4">
+    <button
+      type="button"
+      id="admin-go-hub"
+      class="inline-flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)] hover:text-[var(--v-orange)]"
+    >
+      <i class="fa-solid fa-angle-left hub-icon-orange"></i> Voltar ao hub
+    </button>
+    <div class="flex-1 min-w-0">
+      <p class="text-xs hub-section-label uppercase tracking-wider">Área restrita</p>
+      <h1 class="text-lg font-bold leading-none truncate"><span class="hub-title-accent">BI Hub</span> · Utilizadores</h1>
+    </div>
+    <a href="/auth/logout" class="hidden sm:inline-flex text-xs font-semibold hub-section-label hover:text-[var(--v-orange)]">Terminar sessão</a>
+    <button
+      type="button"
+      id="theme-toggle"
+      class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--panel-border)] text-[var(--text-muted)] hover:border-[var(--v-orange)] hover:text-[var(--v-orange)]"
+      aria-label="Alternar tema"
+    >
+      <i id="theme-icon" class="fa-solid fa-moon text-base"></i>
+    </button>
+  </div>
+
+  <main class="admin-main p-6 sm:p-8 space-y-6 w-full">
+    <section class="hub-shell-card p-6 sm:p-7 space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+        <div>
+          <p class="text-[10px] uppercase hub-section-label font-bold">Gestão manual</p>
+          <h2 class="text-xl font-semibold text-[var(--text-primary)]">Criar utilizador</h2>
+        </div>
+        <p class="text-xs hub-section-label max-w-md">
+          Perfis disponíveis: administrador global, visualizador geral, ou granular por diretório.
+        </p>
+      </div>
+      <form id="create-user-form" class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div class="space-y-4">
+          <div class="space-y-1">
+            <label class="text-xs hub-section-label font-semibold uppercase" for="create-username">Utilizador</label>
+            <input id="create-username" class="hub-input" required maxlength="64" autocomplete="off">
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs hub-section-label font-semibold uppercase" for="create-password">Palavra-passe</label>
+            <input id="create-password" type="password" class="hub-input" required minlength="8" autocomplete="new-password">
+          </div>
+        </div>
+        <div class="space-y-3">
+          <p class="text-xs hub-section-label font-semibold uppercase">Perfil</p>
+          <label class="flex items-start gap-2 text-sm"><input type="radio" name="create-role" value="admin"><span><strong>Admin</strong> — gestão da plataforma.</span></label>
+          <label class="flex items-start gap-2 text-sm"><input type="radio" name="create-role" value="viewer_all" checked><span><strong>Geral</strong> — vê todas as áreas.</span></label>
+          <label class="flex items-start gap-2 text-sm"><input type="radio" name="create-role" value="viewer_area"><span><strong>Por diretório</strong> — selecção em baixo obrigatória.</span></label>
+          <div id="create-dirs" class="space-y-1 hidden">
+            <label class="text-xs hub-section-label font-semibold uppercase" for="create-directories">Diretórios</label>
+            <select id="create-directories" class="hub-input hub-select" multiple size="7"></select>
+          </div>
+        </div>
+        <div class="md:col-span-2">
+          <button type="submit" class="hub-btn-primary max-w-xs">Guardar novo utilizador</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="edit-panel" class="hub-shell-card p-6 sm:p-7 space-y-4 hidden">
+      <input type="hidden" id="edit-user-id">
+      <div class="flex justify-between gap-3 items-start">
+        <div>
+          <p class="text-[10px] uppercase hub-section-label font-bold">Edição rápida</p>
+          <h2 class="text-xl font-semibold text-[var(--text-primary)]">Alterar permissões</h2>
+        </div>
+        <div class="flex gap-3">
+          <button type="button" id="edit-cancel" class="text-xs px-3 py-1.5 rounded-lg border border-[var(--panel-border)]">
+            Cancelar
+          </button>
+          <button type="button" id="edit-save" class="text-xs px-3 py-1.5 rounded-lg bg-[var(--v-orange)] text-white font-semibold">
+            Guardar mudanças
+          </button>
+        </div>
+      </div>
+      <div class="grid md:grid-cols-2 gap-5">
+        <div class="space-y-1">
+          <label class="text-xs hub-section-label font-semibold uppercase" for="edit-username">Utilizador</label>
+          <input id="edit-username" class="hub-input" autocomplete="off">
+        </div>
+        <div class="space-y-1">
+          <label class="text-xs hub-section-label font-semibold uppercase" for="edit-password">Nova palavra-passe</label>
+          <input id="edit-password" type="password" class="hub-input" placeholder="Opcional" autocomplete="new-password">
+          <p class="text-[11px] hub-section-label">Em branco para manter atual.</p>
+        </div>
+        <div class="space-y-3 md:col-span-2">
+          <p class="text-xs hub-section-label font-semibold uppercase">Perfil</p>
+          <label class="flex gap-2 text-sm"><input type="radio" name="edit-role" value="admin"><span>Admin</span></label>
+          <label class="flex gap-2 text-sm"><input type="radio" name="edit-role" value="viewer_all"><span>Visualizador geral</span></label>
+          <label class="flex gap-2 text-sm"><input type="radio" name="edit-role" value="viewer_area"><span>Diretorio específico</span></label>
+          <div id="edit-dirs" class="space-y-1 hidden">
+            <label class="text-xs hub-section-label font-semibold uppercase" for="edit-directories">Seleccionar diretórios</label>
+            <select id="edit-directories" class="hub-input hub-select" multiple size="7"></select>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="hub-shell-card p-0 overflow-hidden">
+      <div class="px-6 py-4 border-b border-[var(--panel-border)] flex items-center gap-4">
+        <h2 class="text-lg font-semibold text-[var(--text-primary)]">Utilizadores ativos</h2>
+      </div>
+      <div class="hub-table-wrap border-0 rounded-none shadow-none bg-transparent border-t-0">
+        <table class="w-full border-collapse">
+          <thead class="bg-[var(--input-bg)] text-xs uppercase hub-section-label text-left tracking-wide">
+            <tr>
+              <th class="px-4 py-3">Nome</th>
+              <th class="px-4 py-3">Perfil</th>
+              <th class="px-4 py-3">Áreas autorizadas</th>
+              <th class="px-4 py-3"></th>
+              <th class="px-4 py-3"></th>
+            </tr>
+          </thead>
+          <tbody id="users-body" class="text-[var(--text-primary)] bg-[var(--panel-bg)]"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="/js/admin-page.js"></script>
+</body>
+</html>

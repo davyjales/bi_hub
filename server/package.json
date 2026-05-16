@@ -1,0 +1,22 @@
+{
+  "name": "bi-hub-auth-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "API de autenticação e gestão de utilizadores do Visteon BI Hub",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "seed": "node seed.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.11.4"
+  }
+}

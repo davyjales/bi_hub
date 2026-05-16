@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entrada — Visteon BI Hub</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+  <link rel="stylesheet" href="/css/hub-theme.css">
+</head>
+<body class="hub-shell antialiased">
+  <button
+    type="button"
+    id="theme-toggle"
+    class="fixed right-6 top-6 z-20 flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--panel-border)] text-[var(--text-muted)] transition-colors hover:border-[var(--v-orange)] hover:text-[var(--v-orange)]"
+    aria-label="Alternar tema"
+  >
+    <i id="theme-icon" class="fa-solid fa-moon text-base"></i>
+  </button>
+
+  <div class="w-full flex justify-center">
+    <div class="hub-shell-card overflow-hidden relative">
+      <div class="px-8 pt-8 pb-6 border-b border-[var(--panel-border)] relative">
+        <div class="flex items-center gap-3">
+          <div class="hub-brand-logo flex h-12 w-12 shrink-0 items-center justify-center rounded-xl overflow-hidden">
+            <img src="/images/visteon-logo.png" alt="Visteon" class="h-full w-full object-contain p-1" width="48" height="48" decoding="async">
+          </div>
+          <div>
+            <h1 class="text-lg font-bold leading-tight tracking-tight">
+              <span class="text-[var(--text-primary)]">Visteon</span>
+              <span class="hub-title-accent"> BI's Hub</span>
+            </h1>
+            <p class="text-[10px] uppercase hub-section-label font-semibold mt-1">Acesso ao hub</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex border-b border-[var(--panel-border)]">
+        <button type="button" id="tab-login" data-switch-login class="flex-1 py-3 text-sm font-semibold text-[var(--text-primary)] border-b-2 border-[var(--v-orange)]">
+          Entrar
+        </button>
+        <button type="button" id="tab-register" data-switch-register class="flex-1 py-3 text-sm font-semibold text-[var(--text-muted)] hover:text-[var(--text-primary)] border-b-2 border-transparent">
+          Novo utilizador
+        </button>
+      </div>
+
+      <div id="auth-global-error" class="mx-8 mt-4 hidden rounded-lg border border-red-500/35 bg-red-500/[0.08] px-3 py-2 text-xs text-[var(--text-primary)]"></div>
+
+      <div id="pane-login" class="p-8 space-y-5">
+        <form method="post" action="/auth/login" class="space-y-4">
+          <div class="space-y-1">
+            <label class="text-xs hub-section-label font-semibold uppercase" for="login-username">Utilizador</label>
+            <input id="login-username" name="username" type="text" required autocomplete="username" class="hub-input">
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs hub-section-label font-semibold uppercase" for="login-password">Palavra-passe</label>
+            <input id="login-password" name="password" type="password" required autocomplete="current-password" class="hub-input">
+          </div>
+          <button type="submit" class="hub-btn-primary">
+            Entrar ao hub <i class="fa-solid fa-arrow-right-to-bracket text-sm opacity-95"></i>
+          </button>
+        </form>
+        <p class="text-center text-xs hub-section-label">
+          Novo utilizador?
+          <button type="button" data-switch-register class="hub-muted-link font-semibold">Criar registo</button>
+        </p>
+      </div>
+
+      <div id="pane-register" class="p-8 space-y-5 hidden">
+        <form method="post" action="/auth/register" class="space-y-5">
+          <div class="space-y-1">
+            <label class="text-xs hub-section-label font-semibold uppercase" for="reg-user">Nome de utilizador</label>
+            <input id="reg-user" name="username" type="text" required autocomplete="username" class="hub-input">
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs hub-section-label font-semibold uppercase" for="reg-pass">Palavra-passe</label>
+            <input id="reg-pass" name="password" type="password" required minlength="8" autocomplete="new-password" class="hub-input">
+            <p class="text-[11px] hub-section-label">Mínimo de 8 caracteres.</p>
+          </div>
+          <div class="space-y-3">
+            <p class="text-xs hub-section-label font-semibold uppercase">Perfil solicitado</p>
+            <label class="flex items-start gap-2 text-sm text-[var(--text-primary)]">
+              <input type="radio" name="role" value="viewer_all" class="mt-1" checked>
+              <span><strong>Visualizador geral</strong> — acesso a todas as áreas e relatórios.</span>
+            </label>
+            <label class="flex items-start gap-2 text-sm text-[var(--text-primary)]">
+              <input type="radio" name="role" value="viewer_area" id="reg-role-area" class="mt-1">
+              <span><strong>Visualizador por diretório</strong> — apenas pastas específicas (é necessário seleccionar).</span>
+            </label>
+            <p class="text-[11px] hub-section-label">
+              Perfis administrativos apenas por um administrador.
+            </p>
+          </div>
+          <div id="register-dir-block" class="space-y-1 hidden">
+            <label class="text-xs hub-section-label font-semibold uppercase" for="register-directory-select">Diretórios</label>
+            <select id="register-directory-select" name="directory_ids" multiple class="hub-input hub-select" size="7"></select>
+            <p class="text-[11px] hub-section-label">
+              Prima Ctrl (⌘ em macOS) para selecionar vários.
+            </p>
+          </div>
+          <button type="submit" class="hub-btn-primary">
+            Concluir registo <i class="fa-solid fa-user-plus text-sm opacity-95"></i>
+          </button>
+        </form>
+        <p class="text-center text-xs hub-section-label">
+          Já tens conta?
+          <button type="button" data-switch-login class="hub-muted-link font-semibold">Ir para entrada</button>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/auth-page.js"></script>
+</body>
+</html>
