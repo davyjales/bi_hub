@@ -37,6 +37,7 @@ router.get('/', async (_req, res, next) => {
         id: u.id,
         username: u.username,
         role: u.role,
+        status: u.status || 'pending',
         createdAt: u.createdAt,
         updatedAt: u.updatedAt,
         directoryIds: u.directoryIds || [],
@@ -101,6 +102,8 @@ router.post('/', async (req, res, next) => {
         username: created.username,
 
         role: created.role,
+
+        status: created.status || 'pending',
 
         directoryIds: didRows.map((r) => r.hub_directory_id),
       },
@@ -232,6 +235,8 @@ router.patch('/:id', async (req, res, next) => {
         username: refreshed.username,
 
         role: refreshed.role,
+
+        status: refreshed.status || 'pending',
 
         directoryIds: didRows.map((r) => r.hub_directory_id),
       },

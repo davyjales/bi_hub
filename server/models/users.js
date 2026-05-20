@@ -32,29 +32,59 @@ async function setUserStatus(id, status) {
 
 async function listUsers() {
   const [rows] = await pool.query(
-    `SELECT u.id, u.username, u.role, u.created_at AS createdAt, u.updated_at AS updatedAt,
-            GROUP_CONCAT(uda.hub_directory_id ORDER BY uda.hub_directory_id SEPARATOR '|') AS dirIdsCsv,
-            GROUP_CONCAT(d.area_key ORDER BY uda.hub_directory_id SEPARATOR '|') AS areaKeysCsv
-       FROM users u
-  LEFT JOIN user_directory_access uda ON u.id = uda.user_id
-  LEFT JOIN hub_directories d ON d.id = uda.hub_directory_id
-   GROUP BY u.id, u.username, u.role, u.created_at, u.updated_at
-   ORDER BY u.username ASC`,
+    `SELECT 
+        u.id,
+        u.username,
+        u.role,
+        u.status,
+        u.created_at AS createdAt,
+        u.updated_at AS updatedAt
+     FROM users u
+     ORDER BY u.username ASC`
   );
+
+  const [accessRows] = await pool.query(
+    `SELECT 
+        uda.user_id,
+        uda.hub_directory_id,
+        d.area_key
+     FROM user_directory_access uda
+     LEFT JOIN hub_directories d ON d.id = uda.hub_directory_id`
+  );
+
+  const accessMap = {};
+
+  for (const r of accessRows) {
+    if (!accessMap[r.user_id]) {
+      accessMap[r.user_id] = {
+        directoryIds: [],
+        directories: [],
+      };
+    }
+
+    accessMap[r.user_id].directoryIds.push(r.hub_directory_id);
+
+    if (r.area_key) {
+      accessMap[r.user_id].directories.push({ areaKey: r.area_key });
+    }
+  }
+
   return rows.map((row) => {
-    const directoryIds =
-      row.dirIdsCsv && row.role === 'viewer_area'
-        ? row.dirIdsCsv
-            .split('|')
-            .map((x) => Number(x))
-            .filter((n) => n > 0)
-        : [];
-    const directories =
-      row.areaKeysCsv && row.role === 'viewer_area'
-        ? row.areaKeysCsv.split('|').map((areaKey) => ({ areaKey }))
-        : [];
-    const { dirIdsCsv, areaKeysCsv, ...rest } = row;
-    return { ...rest, directoryIds, directories };
+    const access = accessMap[row.id] || {
+      directoryIds: [],
+      directories: [],
+    };
+
+    return {
+      id: row.id,
+      username: row.username,
+      role: row.role,
+      status: row.status || 'pending',
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      directoryIds: access.directoryIds,
+      directories: access.directories,
+    };
   });
 }
 
