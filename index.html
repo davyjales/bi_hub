@@ -125,7 +125,26 @@
             <i class="fa-solid fa-circle-info text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" aria-hidden="true"></i>
             <div class="min-w-0 flex-1">
               <p class="font-semibold text-[var(--text-primary)]">Abrir relatórios sem a Microsoft Store</p>
-              <p class="mt-1 text-xs hub-section-label leading-relaxed">O navegador costuma tratar links <span class="font-mono">file://</span> para <span class="font-mono">.pbix</span> de forma errada. Execute <span class="font-mono text-[11px] text-[var(--text-primary)]">BI-Hub-Helper.ps1</span> nesta pasta (clique direito → Executar com PowerShell) e deixe a janela aberta; ao abrir um BI, só uma <strong>nova guia</strong> mostra a confirmação — o hub permanece nesta.</p>
+              <p class="mt-1 text-xs hub-section-label leading-relaxed">O navegador costuma tratar links <span class="font-mono">file://</span> para <span class="font-mono">.pbix</span> de forma errada. Para evitar que abra a <strong>Microsoft Store</strong>, instale o assistente:</p>
+              <div class="mt-3 flex flex-col sm:flex-row sm:items-center sm:gap-3">
+                <a
+                  id="launcher-helper-download"
+                  href="/BI-Hub-Helper.ps1"
+                  download
+                  class="shrink-0 inline-flex justify-center items-center rounded-lg px-3 py-1.5 text-xs font-semibold bg-[var(--v-orange)] text-white hover:brightness-105 transition"
+                >
+                  Clique aqui para baixar o BI-Hub-Helper.ps1
+                </a>
+              </div>
+              <p class="mt-2 text-[11px] hub-section-label leading-relaxed">
+                O arquivo deve cair em <span class="font-mono">C:\Users\<utilizador>\Downloads\BI-Hub-Helper.ps1</span>. Em seguida, execute-o (botão direito → <strong>Executar com PowerShell</strong>) e deixe a janela aberta; ao abrir um BI, só uma <strong>nova guia</strong> mostra a confirmação — o hub permanece nesta.
+              </p>
+              <p id="launcher-helper-cmd-hint" class="mt-2 text-[11px] hub-section-label leading-relaxed hidden">
+                Se “executar com botão direito” não funcionar, execute no CMD/PowerShell como Administrador:
+
+                <span class="font-mono block mt-1 p-2 rounded-lg border border-[var(--panel-border)] bg-[var(--input-bg)] text-[11px]">powershell.exe -ExecutionPolicy Bypass -File "C:\\Users\\<utilizador>\\Downloads\\BI-Hub-Helper.ps1"</span>
+              </p>
+
             </div>
             <button type="button" id="launcher-helper-banner-dismiss" class="shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-[var(--text-muted)] hover:bg-[var(--input-bg)] hover:text-[var(--text-primary)]" aria-label="Fechar aviso">Fechar</button>
           </div>

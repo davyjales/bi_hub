@@ -418,7 +418,10 @@ async function openReport(winPath) {
     openUrlInNewTab(url);
     return;
   }
+  const cmdHintEl = document.getElementById('launcher-helper-cmd-hint');
+  if (cmdHintEl) cmdHintEl.classList.remove('hidden');
   const msg =
+
     'O ajudante local (BI-Hub-Helper.ps1) não está em execução. Sem ele, o navegador pode abrir a Microsoft Store em vez do Power BI Desktop.\n\n' +
     'Execute BI-Hub-Helper.ps1 na pasta do hub e tente de novo.\n\n' +
     'Continuar mesmo assim pelo navegador? (abre numa nova guia)';
@@ -460,7 +463,17 @@ document.getElementById('launcher-helper-banner-dismiss')?.addEventListener('cli
   setLauncherBanner(false);
 });
 
+const cmdHintEl = document.getElementById('launcher-helper-cmd-hint');
+const dlBtn = document.getElementById('launcher-helper-download');
+if (dlBtn && cmdHintEl) {
+  dlBtn.addEventListener('click', () => {
+    cmdHintEl.classList.add('hidden');
+  });
+  // Se o helper falhar ao abrir algum relatório, mostramos o comando (ver openReport).
+}
+
 initTheme();
+
 
 (async function bootstrapHub() {
   const ok = await loadSession();
