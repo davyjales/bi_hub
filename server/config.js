@@ -14,12 +14,29 @@ function validateEnv() {
 
 validateEnv();
 
+function normalizeDir(p) {
+  if (!p) return '';
+  const trimmed = String(p).trim();
+  if (!trimmed) return '';
+  return trimmed.replace(/[/\\]+$/, '');
+}
+
 module.exports = {
   port: Number(process.env.PORT) || 3000,
   nodeEnv: process.env.NODE_ENV || 'development',
   jwt: {
     secret: process.env.JWT_SECRET,
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  },
+  bi: {
+    /** Raiz no servidor Linux onde ficam os .pbix (ex.: /mnt/publico/202/20 - Power BI) */
+    storageRoot: normalizeDir(process.env.BI_STORAGE_ROOT),
+    /**
+     * Caminho Windows mostrado ao cliente para abrir no Power BI Desktop (opcional).
+     * Ex.: P:\2026\20 - Power BI
+     */
+    clientPathPrefix: normalizeDir(process.env.BI_CLIENT_PATH_PREFIX),
+    maxUploadBytes: Number(process.env.BI_MAX_UPLOAD_MB || 200) * 1024 * 1024,
   },
   db: {
     host: process.env.DB_HOST || '127.0.0.1',

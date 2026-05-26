@@ -9,6 +9,7 @@ const apiAuth = require('./routes/apiAuth');
 const apiDirectories = require('./routes/apiDirectories');
 const apiAdminUsers = require('./routes/apiAdminUsers');
 const apiUserApproval = require('./routes/apiUsersApproval');
+const apiBiFiles = require('./routes/apiBiFiles');
 
 
 const ROOT = path.join(__dirname, '..');
@@ -27,7 +28,7 @@ app.use('/api/auth', apiAuth);
 app.use('/api/directories', apiDirectories);
 app.use('/api/users', apiAdminUsers);
 app.use('/api/users', apiUserApproval);
-
+app.use('/api/bi-files', apiBiFiles);
 
 const staticOpts = {
   etag: true,

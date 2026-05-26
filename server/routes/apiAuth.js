@@ -3,6 +3,7 @@ const usersModel = require('../models/users');
 const { signToken } = require('../lib/token');
 const { setTokenCookie } = require('../lib/cookies');
 const { requireAuth } = require('../middleware/resolveUser');
+const { canManageBiFiles } = require('../lib/biPermissions');
 
 const router = express.Router();
 
@@ -20,6 +21,7 @@ router.get('/me', requireAuth, async (req, res, next) => {
         updatedAt: fullUser.updatedAt,
       },
       access: req.authUser.role === 'viewer_area' ? { type: 'scoped', allowedAreaKeys: keys } : { type: 'all' },
+      canManageBi: canManageBiFiles(req.authUser.role),
     });
   } catch (e) {
     next(e);
@@ -45,6 +47,7 @@ router.post('/login', async (req, res, next) => {
       token,
       user: { id: u.id, username: u.username, role: u.role },
       access: u.role === 'viewer_area' ? { type: 'scoped', allowedAreaKeys: keys } : { type: 'all' },
+      canManageBi: canManageBiFiles(u.role),
     });
   } catch (e) {
     next(e);
