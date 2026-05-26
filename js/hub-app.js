@@ -6,10 +6,15 @@ const BANNER_DISMISS_KEY = 'bi-hub-helper-banner-dismissed';
 
 let hubHelperAvailable = false;
 let hubOpenCooldownUntil = 0;
-/** @type {null | { user: { id: number; username: string; role: string }; access: { type: 'all' | 'scoped'; allowedAreaKeys?: string[] } }} */
+/** @type {null | { user: { id: number; username: string; role: string }; access: { type: 'all' | 'scoped'; allowedAreaKeys?: string[] }; canManageBi?: boolean }} */
 let hubSession = null;
 
 let selectedArea = null;
+/** @type {Array<{ id?: number; title: string; area: string; updated: string; file: string; preview?: string; relativePath?: string }>} */
+let reports = [];
+/** @type {string[]} */
+let manageAreaKeys = [];
+let reportsLoadedFromApi = false;
 
 function openUrlInNewTab(url) {
   const a = document.createElement('a');
@@ -36,7 +41,8 @@ const PREVIEW_PLACEHOLDER =
     '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="300" viewBox="0 0 600 300"><rect fill="#1e293b" width="600" height="300"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="15">Preview — adicione a imagem em previews/</text></svg>',
   );
 
-const reports = [
+/** Catálogo estático (fallback se a API de disco não estiver disponível). */
+const REPORTS_FALLBACK = [
   {
     id: 1,
     title: 'Análise de Services',
@@ -124,6 +130,13 @@ const mplSubAreas = [
   { key: 'MPL · Inventário', label: 'Inventário' },
 ];
 
+async function fetchJson(url, opts) {
+  const r = await fetch(url, { credentials: 'include', cache: 'no-store', ...opts });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || r.statusText || String(r.status));
+  return data;
+}
+
 async function loadSession() {
   try {
     const r = await fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' });
@@ -133,6 +146,84 @@ async function loadSession() {
   } catch (_) {
     return false;
   }
+}
+
+function mapApiReport(r, id) {
+  return {
+    id,
+    title: r.title,
+    area: r.area,
+    updated: r.updated || '—',
+    file: r.file,
+    relativePath: r.relativePath,
+    preview: guessPreviewPath(r),
+  };
+}
+
+/** Junta catálogo fixo com o do disco; entradas do disco têm prioridade (mesmo título+área). */
+function mergeReports(apiList, fallbackList) {
+  const map = new Map();
+  for (const item of fallbackList) {
+    map.set(`${item.area}\0${item.title}`, item);
+  }
+  for (const item of apiList) {
+    map.set(`${item.area}\0${item.title}`, item);
+  }
+  return Array.from(map.values()).map((r, i) => ({ ...r, id: i + 1 }));
+}
+
+async function loadReportsFromApi() {
+  const fallback = REPORTS_FALLBACK.slice();
+  reports = fallback.slice();
+  reportsLoadedFromApi = false;
+  try {
+    const r = await fetch('/api/bi-files/reports', { credentials: 'include', cache: 'no-store' });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !Array.isArray(data.reports) || !data.reports.length) {
+      return false;
+    }
+    const fromApi = data.reports.map((item, i) => mapApiReport(item, i + 1));
+    if (!fromApi.length) return false;
+    reports = mergeReports(fromApi, fallback);
+    reportsLoadedFromApi = true;
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function guessPreviewPath(r) {
+  const hit = REPORTS_FALLBACK.find(
+    (f) => f.title === r.title && f.area === r.area,
+  );
+  return hit?.preview || '';
+}
+
+async function loadManageAreas() {
+  manageAreaKeys = [];
+  if (!hubSession?.canManageBi) return;
+  try {
+    const data = await fetchJson('/api/bi-files/manage-areas');
+    if (!data.canManage) return;
+    if (data.areaKeys === 'all') {
+      try {
+        const dirs = await fetchJson('/api/directories');
+        manageAreaKeys = (dirs.directories || []).map((d) => d.areaKey).filter(Boolean);
+      } catch (_) {
+        manageAreaKeys = mplSubAreas.map((s) => s.key).concat(rootAreas.filter((a) => a !== 'MPL'));
+      }
+      return;
+    }
+    manageAreaKeys = data.areaKeys || [];
+  } catch (_) {
+    manageAreaKeys = [];
+  }
+}
+
+function canDeleteReport(r) {
+  if (!hubSession?.canManageBi || !r.relativePath) return false;
+  if (hubSession.user.role === 'admin') return true;
+  return manageAreaKeys.includes(r.area);
 }
 
 function initialsFrom(username) {
@@ -152,14 +243,27 @@ function profileLabel(role) {
 }
 
 function reportsFiltered(list) {
-  if (!hubSession || hubSession.access.type === 'all') return list;
-  const keys = new Set(hubSession.access.allowedAreaKeys || []);
-  return list.filter((r) => keys.has(r.area));
+  const access = hubSession?.access;
+  if (!access || access.type === 'all') return list;
+  const keys = new Set(access.allowedAreaKeys || []);
+  return list.filter((r) => r.area && keys.has(r.area));
+}
+
+/** Lista para exibir: se a API “esvaziar” o filtro, volta ao catálogo fixo permitido. */
+function reportsForDisplay() {
+  const current = reportsFiltered(reports);
+  if (current.length) return current;
+  if (reportsLoadedFromApi) {
+    const fromFallback = reportsFiltered(REPORTS_FALLBACK);
+    if (fromFallback.length) return fromFallback;
+  }
+  return current;
 }
 
 function rootAreasForUser() {
-  if (!hubSession || hubSession.access.type === 'all') return rootAreas;
-  const keys = new Set(hubSession.access.allowedAreaKeys || []);
+  const access = hubSession?.access;
+  if (!access || access.type === 'all') return rootAreas;
+  const keys = new Set(access.allowedAreaKeys || []);
   return rootAreas.filter((area) => {
     if (area === 'MPL') return mplSubAreas.some(({ key }) => keys.has(key));
     return keys.has(area);
@@ -167,13 +271,14 @@ function rootAreasForUser() {
 }
 
 function mplSubAreasForUser() {
-  if (!hubSession || hubSession.access.type === 'all') return mplSubAreas;
-  const keys = new Set(hubSession.access.allowedAreaKeys || []);
+  const access = hubSession?.access;
+  if (!access || access.type === 'all') return mplSubAreas;
+  const keys = new Set(access.allowedAreaKeys || []);
   return mplSubAreas.filter(({ key }) => keys.has(key));
 }
 
 function allReportsTitleTerm() {
-  return hubSession && hubSession.access.type === 'scoped' ? 'Painel autorizado' : 'Todos os Relatórios';
+  return hubSession?.access?.type === 'scoped' ? 'Painel autorizado' : 'Todos os Relatórios';
 }
 
 function applyHeaderProfile() {
@@ -186,6 +291,8 @@ function applyHeaderProfile() {
   if (elRole) elRole.textContent = hubSession?.user?.role ? profileLabel(hubSession.user.role) : '—';
   if (elAvatar) elAvatar.textContent = initialsFrom(nm);
   if (adminLink) adminLink.classList.toggle('hidden', hubSession?.user?.role !== 'admin');
+  const manageBtn = document.getElementById('bi-manage-open');
+  if (manageBtn) manageBtn.classList.toggle('hidden', !hubSession?.canManageBi);
 }
 
 function isMplBranchVisible() {
@@ -193,7 +300,7 @@ function isMplBranchVisible() {
 }
 
 function reportsForMplRoot() {
-  return reportsFiltered(reports.filter((r) => r.area.startsWith('MPL ·')));
+  return reportsForDisplay().filter((r) => r.area.startsWith('MPL ·'));
 }
 
 function setLauncherBanner(visible) {
@@ -286,7 +393,7 @@ function initTheme() {
   applyTheme(dark);
 }
 
-document.getElementById('theme-toggle').addEventListener('click', () => {
+document.getElementById('theme-toggle')?.addEventListener('click', () => {
   applyTheme(!document.documentElement.classList.contains('dark'));
 });
 
@@ -328,7 +435,7 @@ function renderAreas() {
   const container = document.getElementById('areas-list');
   const areas = rootAreasForUser();
   const allActive = selectedArea === null ? ' is-active' : '';
-  const scoped = hubSession && hubSession.access.type === 'scoped';
+  const scoped = hubSession?.access?.type === 'scoped';
   const allLabel = scoped ? 'Painel autorizado' : 'Todas as áreas';
   const allRow = `
         <button type="button" data-area="__all__"
@@ -378,8 +485,12 @@ function renderCards(filteredReports) {
   grid.innerHTML = filteredReports
     .map((r) => {
       const previewSrc = r.preview ? r.preview : PREVIEW_PLACEHOLDER;
+      const delBtn = canDeleteReport(r)
+        ? `<button type="button" class="bi-delete-btn absolute top-2 right-2 z-10 rounded-lg bg-red-600/90 px-2 py-1 text-[10px] font-semibold text-white opacity-0 group-hover:opacity-100 transition" data-delete="${encodeURIComponent(r.relativePath)}" title="Excluir relatório">Excluir</button>`
+        : '';
       return `
-        <article class="hub-card rounded-2xl overflow-hidden cursor-pointer group" data-open="${encodeURIComponent(r.file)}">
+        <article class="hub-card rounded-2xl overflow-hidden cursor-pointer group relative" data-open="${encodeURIComponent(r.file)}">
+          ${delBtn}
           <div class="h-44 relative overflow-hidden bg-black">
             <img src="${previewSrc}" alt="" class="preview-img js-preview-thumb w-full h-full object-cover opacity-95" loading="lazy">
             <div class="hub-preview-overlay absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-3">
@@ -399,7 +510,16 @@ function renderCards(filteredReports) {
     .join('');
 
   grid.querySelectorAll('[data-open]').forEach((el) => {
-    el.addEventListener('click', () => openReport(decodeURIComponent(el.getAttribute('data-open'))));
+    el.addEventListener('click', (ev) => {
+      if (ev.target.closest('.bi-delete-btn')) return;
+      openReport(decodeURIComponent(el.getAttribute('data-open')));
+    });
+  });
+  grid.querySelectorAll('.bi-delete-btn').forEach((btn) => {
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      deleteReport(decodeURIComponent(btn.getAttribute('data-delete')));
+    });
   });
   grid.querySelectorAll('img.js-preview-thumb').forEach((img) => {
     img.addEventListener('error', function onThumbErr() {
@@ -430,24 +550,25 @@ async function openReport(winPath) {
 
 function filterByArea(area) {
   selectedArea = area;
-  document.getElementById('search-input').value = '';
+  const searchEl = document.getElementById('search-input');
+  if (searchEl) searchEl.value = '';
   if (area === null) {
     document.getElementById('area-title').textContent = allReportsTitleTerm();
-    renderCards(reportsFiltered(reports));
+    renderCards(reportsForDisplay());
   } else if (area === 'MPL') {
     document.getElementById('area-title').textContent = 'MPL';
     renderCards(reportsForMplRoot());
   } else {
     document.getElementById('area-title').textContent = area;
-    renderCards(reportsFiltered(reports.filter((r) => r.area === area)));
+    renderCards(reportsForDisplay().filter((r) => r.area === area));
   }
   renderAreas();
 }
 
-document.getElementById('search-input').addEventListener('input', (e) => {
+document.getElementById('search-input')?.addEventListener('input', (e) => {
   const term = e.target.value.toLowerCase().trim();
   selectedArea = null;
-  const allowed = reportsFiltered(reports);
+  const allowed = reportsForDisplay();
   const filtered = term
     ? allowed.filter((r) => r.title.toLowerCase().includes(term) || r.area.toLowerCase().includes(term))
     : allowed;
@@ -474,21 +595,152 @@ if (dlBtn && cmdHintEl) {
 
 initTheme();
 
-
-(async function bootstrapHub() {
-  const ok = await loadSession();
-  if (!ok) {
-    window.location.replace(
-      '/auth.html?err=' +
-        encodeURIComponent(
-          'O utilizador não tem permissões para entrar no sistema. Aguarde aprovações do administrador.',
-        ),
-    );
+function setUploadMsg(text, isError) {
+  const el = document.getElementById('bi-upload-msg');
+  if (!el) return;
+  if (!text) {
+    el.classList.add('hidden');
     return;
   }
-  applyHeaderProfile();
-  renderAreas();
-  renderCards(reportsFiltered(reports));
-  probeLauncher();
+  el.textContent = text;
+  el.classList.remove('hidden');
+  el.classList.toggle('text-red-500', !!isError);
+  el.classList.toggle('text-emerald-600', !isError);
+}
+
+function fillManageAreaSelect() {
+  const sel = document.getElementById('bi-upload-area');
+  if (!sel) return;
+  const keys = manageAreaKeys.length
+    ? manageAreaKeys
+    : hubSession?.access?.type === 'scoped'
+      ? hubSession.access.allowedAreaKeys || []
+      : mplSubAreas.map((s) => s.key);
+  sel.innerHTML = keys
+    .map((k) => `<option value="${k.replace(/"/g, '&quot;')}">${k}</option>`)
+    .join('');
+}
+
+async function loadBiHistory() {
+  const box = document.getElementById('bi-history-list');
+  if (!box || !hubSession?.canManageBi) return;
+  box.innerHTML = '<p>A carregar…</p>';
+  try {
+    const data = await fetchJson('/api/bi-files/history?limit=30');
+    const entries = data.entries || [];
+    if (!entries.length) {
+      box.innerHTML = '<p>Sem registos ainda.</p>';
+      return;
+    }
+    box.innerHTML = entries
+      .map((e) => {
+        const action = e.action === 'upload' ? 'Inseriu' : 'Excluiu';
+        const when = e.createdAt ? new Date(e.createdAt).toLocaleString('pt-BR') : '';
+        return `<div class="rounded-lg border border-[var(--panel-border)] px-2 py-1.5">
+          <span class="font-medium text-[var(--text-primary)]">${action}</span>
+          <span class="font-mono text-[10px]"> ${e.fileName}</span>
+          <span class="block text-[10px]">${e.username} · ${e.areaKey} · ${when}</span>
+        </div>`;
+      })
+      .join('');
+  } catch (err) {
+    box.innerHTML = `<p class="text-red-500">${err.message || 'Erro ao carregar histórico.'}</p>`;
+  }
+}
+
+function openManageModal() {
+  fillManageAreaSelect();
+  setUploadMsg('');
+  document.getElementById('bi-upload-file').value = '';
+  document.getElementById('bi-manage-modal')?.classList.remove('hidden');
+  loadBiHistory();
+}
+
+function closeManageModal() {
+  document.getElementById('bi-manage-modal')?.classList.add('hidden');
+}
+
+async function refreshReportsView() {
+  await loadReportsFromApi();
+  filterByArea(selectedArea);
+}
+
+async function deleteReport(relativePath) {
+  if (!relativePath) return;
+  if (!confirm('Excluir este relatório .pbix do servidor? Esta ação não pode ser desfeita.')) return;
+  try {
+    await fetchJson('/api/bi-files/file', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ relativePath }),
+    });
+    await refreshReportsView();
+    loadBiHistory();
+  } catch (err) {
+    alert(err.message || 'Não foi possível excluir.');
+  }
+}
+
+document.getElementById('bi-manage-open')?.addEventListener('click', openManageModal);
+document.getElementById('bi-manage-close')?.addEventListener('click', closeManageModal);
+document.getElementById('bi-manage-modal')?.addEventListener('click', (e) => {
+  if (e.target.id === 'bi-manage-modal') closeManageModal();
+});
+
+document.getElementById('bi-upload-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  setUploadMsg('A enviar…', false);
+  const areaKey = document.getElementById('bi-upload-area')?.value;
+  const fileInput = document.getElementById('bi-upload-file');
+  const file = fileInput?.files?.[0];
+  if (!areaKey || !file) {
+    setUploadMsg('Selecione área e ficheiro .pbix.', true);
+    return;
+  }
+  const fd = new FormData();
+  fd.append('areaKey', areaKey);
+  fd.append('fileName', file.name);
+  fd.append('file', file);
+  try {
+    const r = await fetch('/api/bi-files/upload', {
+      method: 'POST',
+      credentials: 'include',
+      body: fd,
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || 'Falha no envio.');
+    setUploadMsg('Relatório enviado com sucesso.', false);
+    fileInput.value = '';
+    await refreshReportsView();
+    loadBiHistory();
+  } catch (err) {
+    setUploadMsg(err.message || 'Erro no envio.', true);
+  }
+});
+
+(async function bootstrapHub() {
+  try {
+    const ok = await loadSession();
+    if (!ok) {
+      window.location.replace(
+        '/auth.html?err=' +
+          encodeURIComponent(
+            'O utilizador não tem permissões para entrar no sistema. Aguarde aprovações do administrador.',
+          ),
+      );
+      return;
+    }
+    reports = REPORTS_FALLBACK.slice();
+    await loadManageAreas();
+    await loadReportsFromApi();
+    applyHeaderProfile();
+    renderAreas();
+    renderCards(reportsForDisplay());
+    probeLauncher();
+  } catch (err) {
+    console.error('[bi-hub] bootstrap:', err);
+    reports = REPORTS_FALLBACK.slice();
+    renderCards(reportsForDisplay());
+  }
 })();
 

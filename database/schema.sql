@@ -5,6 +5,7 @@
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
+DROP TABLE IF EXISTS bi_file_audit;
 DROP TABLE IF EXISTS user_directory_access;
 DROP TABLE IF EXISTS hub_directories;
 DROP TABLE IF EXISTS users;
@@ -41,5 +42,23 @@ CREATE TABLE user_directory_access (
   CONSTRAINT fk_uda_user FOREIGN KEY (user_id) REFERENCES users (id)
     ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT fk_uda_directory FOREIGN KEY (hub_directory_id) REFERENCES hub_directories (id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Histórico de inserção/exclusão de relatórios .pbix no armazenamento do servidor.
+CREATE TABLE bi_file_audit (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id INT UNSIGNED NOT NULL,
+  username VARCHAR(64) NOT NULL,
+  action ENUM('upload', 'delete') NOT NULL,
+  area_key VARCHAR(160) NOT NULL,
+  file_name VARCHAR(255) NOT NULL,
+  relative_path VARCHAR(512) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_bi_file_audit_created (created_at),
+  KEY idx_bi_file_audit_user (user_id),
+  KEY idx_bi_file_audit_area (area_key),
+  CONSTRAINT fk_bi_file_audit_user FOREIGN KEY (user_id) REFERENCES users (id)
     ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
