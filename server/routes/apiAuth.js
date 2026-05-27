@@ -4,8 +4,13 @@ const { signToken } = require('../lib/token');
 const { setTokenCookie } = require('../lib/cookies');
 const { requireAuth } = require('../middleware/resolveUser');
 const { canManageBiFiles } = require('../lib/biPermissions');
+const { requestPasswordReset, isMailConfigured } = require('../lib/passwordReset');
 
 const router = express.Router();
+
+router.get('/config', (_req, res) => {
+  res.json({ ok: true, passwordResetAvailable: isMailConfigured() });
+});
 
 router.get('/me', requireAuth, async (req, res, next) => {
   try {
@@ -20,7 +25,10 @@ router.get('/me', requireAuth, async (req, res, next) => {
         createdAt: fullUser.createdAt,
         updatedAt: fullUser.updatedAt,
       },
-      access: req.authUser.role === 'viewer_area' ? { type: 'scoped', allowedAreaKeys: keys } : { type: 'all' },
+      access:
+        req.authUser.role === 'viewer_area' || req.authUser.role === 'owner_setor'
+          ? { type: 'scoped', allowedAreaKeys: keys }
+          : { type: 'all' },
       canManageBi: canManageBiFiles(req.authUser.role),
     });
   } catch (e) {
@@ -34,6 +42,12 @@ router.post('/login', async (req, res, next) => {
     const { username, password } = req.body || {};
     const u = await usersModel.findByUsername(String(username || '').trim());
     if (!u) return res.status(401).json({ ok: false, error: 'Credenciais inválidas.' });
+    if (u.status !== 'approved') {
+      return res.status(403).json({
+        ok: false,
+        error: 'Conta pendente de aprovação ou inactiva. Contacte o administrador.',
+      });
+    }
 
     const { verifyPassword } = require('../lib/password');
     const ok = await verifyPassword(String(password || ''), u.passwordHash);
@@ -46,9 +60,22 @@ router.post('/login', async (req, res, next) => {
       ok: true,
       token,
       user: { id: u.id, username: u.username, role: u.role },
-      access: u.role === 'viewer_area' ? { type: 'scoped', allowedAreaKeys: keys } : { type: 'all' },
+      access:
+        u.role === 'viewer_area' || u.role === 'owner_setor'
+          ? { type: 'scoped', allowedAreaKeys: keys }
+          : { type: 'all' },
       canManageBi: canManageBiFiles(u.role),
     });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post('/forgot-password', async (req, res, next) => {
+  try {
+    const result = await requestPasswordReset(req.body?.email);
+    if (!result.ok) return res.status(400).json({ ok: false, error: result.error });
+    return res.json({ ok: true, message: result.message });
   } catch (e) {
     next(e);
   }

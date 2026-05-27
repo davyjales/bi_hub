@@ -48,4 +48,14 @@ module.exports = {
     connectionLimit: 10,
     namedPlaceholders: true,
   },
+  mail: {
+    host: process.env.SMTP_HOST || '',
+    port: Number(process.env.SMTP_PORT) || 587,
+    secure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_SECURE === '1',
+    user: process.env.SMTP_USER || '',
+    pass: process.env.SMTP_PASS || '',
+    from: process.env.SMTP_FROM || '',
+    appName: process.env.MAIL_APP_NAME || 'Visteon BI Hub',
+    loginUrl: process.env.APP_LOGIN_URL || '',
+  },
 };

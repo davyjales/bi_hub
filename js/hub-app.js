@@ -109,26 +109,122 @@ const REPORTS_FALLBACK = [
   },
 ];
 
-const rootAreas = [
-  'Engenharia Industrial',
-  'Finance',
-  'Manufatura',
-  'MPL',
-  'New Models',
-  'OPEX',
-  'Qualidade',
-  'RH',
-  'Tax',
-];
+/** Diretórios vindos da API `/api/directories` (areaKey). */
+/** @type {{ id:number; areaKey:string }[]} */
+let directoryCatalog = [];
 
-const mplSubAreas = [
-  { key: 'MPL · PCP', label: 'PCP' },
-  { key: 'MPL · RFU', label: 'RFU' },
-  { key: 'MPL · WH', label: 'WH' },
-  { key: 'MPL · CS', label: 'CS' },
-  { key: 'MPL · Cycle Count', label: 'Cycle Count' },
-  { key: 'MPL · Inventário', label: 'Inventário' },
-];
+/** Pasta pai selecionada no modal de gestão (`null` = raiz). */
+let dirCreateParentKey = null;
+
+/** Evita que respostas antigas do histórico de diretórios sobrescrevam uma mais recente. */
+let dirHistoryReq = 0;
+
+/** Pastas expandidas no menu View e na gestão de diretórios. */
+const viewTreeExpanded = new Set();
+const dirTreeExpanded = new Set();
+
+function expandTreeAncestors(key, expandedSet) {
+  if (!key) return;
+  let p = areaKeyParent(key);
+  while (p) {
+    expandedSet.add(p);
+    p = areaKeyParent(p);
+  }
+}
+
+function escapeHtml(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function escapeAttr(s) {
+  return String(s || '').replace(/"/g, '&quot;');
+}
+
+function areaKeyParent(key) {
+  if (!key || key === 'MPL') return null;
+  if (key.startsWith('MPL · ')) {
+    const rest = key.slice('MPL · '.length);
+    const parts = rest.split('/').filter(Boolean);
+    if (parts.length <= 1) return 'MPL';
+    return `MPL · ${parts.slice(0, -1).join('/')}`;
+  }
+  const parts = key.split('/').filter(Boolean);
+  if (parts.length <= 1) return null;
+  return parts.slice(0, -1).join('/');
+}
+
+function areaKeyLabel(key) {
+  if (key === 'MPL') return 'MPL';
+  if (key.startsWith('MPL · ')) {
+    const rest = key.slice('MPL · '.length);
+    const parts = rest.split('/').filter(Boolean);
+    return parts[parts.length - 1] || '—';
+  }
+  const parts = String(key || '').split('/').filter(Boolean);
+  return parts[parts.length - 1] || '—';
+}
+
+function areaKeyIsAncestor(ancestor, descendant) {
+  if (!ancestor || !descendant) return false;
+  if (ancestor === descendant) return true;
+  if (ancestor === 'MPL') return descendant === 'MPL' || descendant.startsWith('MPL · ');
+  return descendant.startsWith(ancestor + '/');
+}
+
+function buildDirectoryTree(allKeys) {
+  const keysSet = new Set(allKeys);
+  const childrenMap = new Map();
+  const roots = [];
+  for (const k of keysSet) {
+    const p = areaKeyParent(k);
+    if (!p || !keysSet.has(p)) {
+      roots.push(k);
+    } else {
+      if (!childrenMap.has(p)) childrenMap.set(p, []);
+      childrenMap.get(p).push(k);
+    }
+  }
+  const sortByLabel = (a, b) => areaKeyLabel(a).localeCompare(areaKeyLabel(b), 'pt-BR');
+  roots.sort(sortByLabel);
+  for (const [p, arr] of childrenMap.entries()) {
+    arr.sort(sortByLabel);
+    childrenMap.set(p, arr);
+  }
+  return { roots, childrenMap };
+}
+
+function normalizeChildFolderName(name) {
+  const n = String(name || '').trim();
+  if (!n) return null;
+  if (n.includes('/') || n.includes('\\') || n.includes('..')) return null;
+  if (n === 'previews') return null;
+  return n;
+}
+
+function joinAreaKey(parentKey, childName) {
+  const child = normalizeChildFolderName(childName);
+  if (!child) return null;
+  if (!parentKey) return child;
+  if (parentKey === 'MPL') return `MPL · ${child}`;
+  if (parentKey.startsWith('MPL · ')) return `${parentKey}/${child}`;
+  return `${parentKey}/${child}`;
+}
+
+function formatDirParentLabel(parentKey) {
+  if (!parentKey) return 'Raiz (nível superior)';
+  return parentKey;
+}
+
+function setDirCreateParent(parentKey) {
+  dirCreateParentKey = parentKey;
+  if (parentKey) expandTreeAncestors(parentKey, dirTreeExpanded);
+  const el = document.getElementById('dir-create-parent-label');
+  if (el) el.textContent = formatDirParentLabel(parentKey);
+  renderDirectoryList();
+}
 
 async function fetchJson(url, opts) {
   const r = await fetch(url, { credentials: 'include', cache: 'no-store', ...opts });
@@ -156,7 +252,7 @@ function mapApiReport(r, id) {
     updated: r.updated || '—',
     file: r.file,
     relativePath: r.relativePath,
-    preview: guessPreviewPath(r),
+    preview: r.preview || '',
   };
 }
 
@@ -192,13 +288,6 @@ async function loadReportsFromApi() {
   }
 }
 
-function guessPreviewPath(r) {
-  const hit = REPORTS_FALLBACK.find(
-    (f) => f.title === r.title && f.area === r.area,
-  );
-  return hit?.preview || '';
-}
-
 async function loadManageAreas() {
   manageAreaKeys = [];
   if (!hubSession?.canManageBi) return;
@@ -210,7 +299,7 @@ async function loadManageAreas() {
         const dirs = await fetchJson('/api/directories');
         manageAreaKeys = (dirs.directories || []).map((d) => d.areaKey).filter(Boolean);
       } catch (_) {
-        manageAreaKeys = mplSubAreas.map((s) => s.key).concat(rootAreas.filter((a) => a !== 'MPL'));
+        manageAreaKeys = [];
       }
       return;
     }
@@ -222,8 +311,14 @@ async function loadManageAreas() {
 
 function canDeleteReport(r) {
   if (!hubSession?.canManageBi || !r.relativePath) return false;
-  if (hubSession.user.role === 'admin') return true;
-  return manageAreaKeys.includes(r.area);
+  if (hubSession.user.role === 'admin' || hubSession.user.role === 'viewer_all') return true;
+  const areaKey = r.area;
+  return manageAreaKeys.some((allowedKey) => {
+    if (!allowedKey || !areaKey) return false;
+    if (allowedKey === areaKey) return true;
+    if (allowedKey === 'MPL') return areaKey === 'MPL' || areaKey.startsWith('MPL · ');
+    return areaKey.startsWith(allowedKey + '/');
+  });
 }
 
 function initialsFrom(username) {
@@ -236,11 +331,13 @@ function initialsFrom(username) {
 function profileLabel(role) {
   const map = {
     admin: 'Administrador',
-    viewer_all: 'Visualização geral',
-    viewer_area: 'Visualização por diretório',
+    viewer_all: 'Owner ADM',
+    viewer_area: 'Viewer',
+    owner_setor: 'Owner Setor',
   };
   return map[role] || role;
 }
+
 
 function reportsFiltered(list) {
   const access = hubSession?.access;
@@ -260,23 +357,6 @@ function reportsForDisplay() {
   return current;
 }
 
-function rootAreasForUser() {
-  const access = hubSession?.access;
-  if (!access || access.type === 'all') return rootAreas;
-  const keys = new Set(access.allowedAreaKeys || []);
-  return rootAreas.filter((area) => {
-    if (area === 'MPL') return mplSubAreas.some(({ key }) => keys.has(key));
-    return keys.has(area);
-  });
-}
-
-function mplSubAreasForUser() {
-  const access = hubSession?.access;
-  if (!access || access.type === 'all') return mplSubAreas;
-  const keys = new Set(access.allowedAreaKeys || []);
-  return mplSubAreas.filter(({ key }) => keys.has(key));
-}
-
 function allReportsTitleTerm() {
   return hubSession?.access?.type === 'scoped' ? 'Painel autorizado' : 'Todos os Relatórios';
 }
@@ -287,20 +367,20 @@ function applyHeaderProfile() {
   const elRole = document.getElementById('hub-user-role');
   const elAvatar = document.getElementById('hub-user-avatar');
   const adminLink = document.getElementById('hub-admin-link');
+  const dirTab = document.getElementById('tab-gestao-diretorio');
+  const pbiTab = document.getElementById('tab-gestao-pbi');
   if (elName) elName.textContent = nm;
   if (elRole) elRole.textContent = hubSession?.user?.role ? profileLabel(hubSession.user.role) : '—';
   if (elAvatar) elAvatar.textContent = initialsFrom(nm);
   if (adminLink) adminLink.classList.toggle('hidden', hubSession?.user?.role !== 'admin');
+  if (dirTab) dirTab.classList.toggle('hidden', hubSession?.user?.role !== 'admin');
+  if (pbiTab) pbiTab.classList.toggle('hidden', !hubSession?.canManageBi);
   const manageBtn = document.getElementById('bi-manage-open');
   if (manageBtn) manageBtn.classList.toggle('hidden', !hubSession?.canManageBi);
 }
 
-function isMplBranchVisible() {
-  return selectedArea === 'MPL' || (selectedArea != null && selectedArea.startsWith('MPL ·'));
-}
-
 function reportsForMplRoot() {
-  return reportsForDisplay().filter((r) => r.area.startsWith('MPL ·'));
+  return reportsForDisplay().filter((r) => r.area === 'MPL' || r.area.startsWith('MPL ·'));
 }
 
 function setLauncherBanner(visible) {
@@ -397,79 +477,98 @@ document.getElementById('theme-toggle')?.addEventListener('click', () => {
   applyTheme(!document.documentElement.classList.contains('dark'));
 });
 
-function syncMplAside() {
-  const el = document.getElementById('mpl-sub-aside');
-  const open = isMplBranchVisible();
-  el.classList.toggle('is-open', open);
-  el.setAttribute('aria-hidden', open ? 'false' : 'true');
-}
+function renderViewMenu() {
+  const viewMenu = document.getElementById('view-megamenu');
+  const treeBox = document.getElementById('view-area-tree');
+  if (!viewMenu || !treeBox) return;
 
-function renderMplSubList() {
-  const container = document.getElementById('mpl-sub-list');
-  const subs = mplSubAreasForUser();
-  if (!isMplBranchVisible()) {
-    container.innerHTML = '';
-    return;
+  const access = hubSession?.access;
+  const scoped = access?.type === 'scoped';
+  const allLabel = scoped ? 'Painel autorizado' : 'Todas as áreas';
+  const allActive = selectedArea === null ? ' is-active' : '';
+
+  const allRow = `
+    <button type="button" data-area="__all__" class="${allActive}">
+      <i class="fa-solid fa-layer-group hub-icon-blue text-xs w-4 shrink-0"></i>
+      <span class="hub-view-area-label text-[13px]">${allLabel}</span>
+    </button>`;
+
+  const allKeys = (directoryCatalog || []).map((d) => d.areaKey).filter(Boolean);
+  const allKeysSet = new Set(allKeys);
+
+  const allowedSet =
+    !access || access.type === 'all'
+      ? new Set(allKeys)
+      : new Set((access.allowedAreaKeys || []).filter((k) => allKeysSet.has(k)));
+
+  const keysToShow = new Set();
+  for (const k of allowedSet) {
+    keysToShow.add(k);
+    let p = areaKeyParent(k);
+    while (p) {
+      keysToShow.add(p);
+      p = areaKeyParent(p);
+    }
   }
-  container.innerHTML = subs
-    .map(({ key, label }) => {
-      const active = selectedArea === key ? ' is-active' : '';
-      const esc = key.replace(/"/g, '"');
-      return `
-        <button type="button" data-mpl-sub="${esc}"
-          class="hub-area-item w-full text-left px-4 py-2.5 flex items-center gap-3${active}">
-          <i class="fa-solid fa-folder-open hub-icon-orange text-sm w-4 shrink-0"></i>
-          <span class="font-medium text-sm">${label}</span>
-        </button>`;
-    })
-    .join('');
 
-  container.querySelectorAll('[data-mpl-sub]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      filterByArea(btn.getAttribute('data-mpl-sub'));
+  const { roots, childrenMap } = buildDirectoryTree(Array.from(keysToShow));
+
+  if (selectedArea) expandTreeAncestors(selectedArea, viewTreeExpanded);
+
+  const renderNode = (key) => {
+    const children = childrenMap.get(key) || [];
+    const hasChildren = children.length > 0;
+    const isExpanded = viewTreeExpanded.has(key);
+    const isActive = selectedArea === key || areaKeyIsAncestor(key, selectedArea);
+    const activeClass = isActive ? ' is-active' : '';
+    const label = areaKeyLabel(key);
+    const icon = hasChildren && isExpanded ? 'fa-folder-open' : 'fa-folder';
+
+    const toggle = hasChildren
+      ? `<button type="button" class="hub-tree-toggle" data-view-tree-toggle="${escapeAttr(key)}" aria-label="Mostrar ou ocultar subpastas" aria-expanded="${isExpanded}">
+           <i class="fa-solid fa-chevron-right hub-tree-chevron${isExpanded ? ' is-open' : ''}" aria-hidden="true"></i>
+         </button>`
+      : '<span class="hub-tree-spacer" aria-hidden="true"></span>';
+
+    return `
+      <div class="hub-tree-branch${isExpanded ? ' is-expanded' : ''}">
+        <div class="hub-tree-row">
+          ${toggle}
+          <button type="button" data-area="${escapeAttr(key)}" class="hub-tree-area-btn${activeClass}">
+            <i class="fa-solid ${icon} hub-icon-orange text-xs w-4 shrink-0"></i>
+            <span class="hub-view-area-label truncate">${escapeHtml(label)}</span>
+          </button>
+        </div>
+        ${
+          hasChildren
+            ? `<div class="hub-tree-children space-y-0.5${isExpanded ? '' : ' hidden'}">${children.map(renderNode).join('')}</div>`
+            : ''
+        }
+      </div>`;
+  };
+
+  treeBox.innerHTML = allRow + roots.map(renderNode).join('');
+
+  treeBox.querySelectorAll('[data-view-tree-toggle]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const key = btn.getAttribute('data-view-tree-toggle');
+      if (!key) return;
+      if (viewTreeExpanded.has(key)) viewTreeExpanded.delete(key);
+      else viewTreeExpanded.add(key);
+      renderViewMenu();
     });
   });
-}
 
-function renderAreas() {
-  const container = document.getElementById('areas-list');
-  const areas = rootAreasForUser();
-  const allActive = selectedArea === null ? ' is-active' : '';
-  const scoped = hubSession?.access?.type === 'scoped';
-  const allLabel = scoped ? 'Painel autorizado' : 'Todas as áreas';
-  const allRow = `
-        <button type="button" data-area="__all__"
-          class="hub-area-item w-full text-left px-4 py-2.5 flex items-center gap-3${allActive}">
-          <i class="fa-solid fa-layer-group hub-icon-blue text-sm w-4 shrink-0"></i>
-          <span class="font-medium text-sm">${allLabel}</span>
-        </button>`;
-  const rows = areas
-    .map((area) => {
-      const isMpl = area === 'MPL';
-      const mplContext =
-        selectedArea === 'MPL' || (selectedArea != null && selectedArea.startsWith('MPL ·'));
-      const rowActive = isMpl ? mplContext : selectedArea === area;
-      const activeClass = rowActive ? ' is-active' : '';
-      return `
-        <button type="button" data-area="${area.replace(/"/g, '"')}"
-          class="hub-area-item w-full text-left px-4 py-2.5 flex items-center gap-3${activeClass}">
-          <i class="fa-solid fa-folder hub-icon-orange text-sm w-4 shrink-0"></i>
-          <span class="font-medium text-sm flex-1 min-w-0 truncate">${area}</span>
-          ${isMpl ? '<i class="fa-solid fa-chevron-right text-[10px] text-[var(--text-muted)] shrink-0" aria-hidden="true"></i>' : ''}
-        </button>`;
-    })
-    .join('');
-  container.innerHTML = allRow + rows;
-
-  container.querySelectorAll('[data-area]').forEach((btn) => {
+  treeBox.querySelectorAll('[data-area]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const v = btn.getAttribute('data-area');
       filterByArea(v === '__all__' ? null : v);
+      viewMenu.classList.add('hidden');
+      setActiveTab('view');
     });
   });
-
-  syncMplAside();
-  renderMplSubList();
 }
 
 function renderCards(filteredReports) {
@@ -485,12 +584,16 @@ function renderCards(filteredReports) {
   grid.innerHTML = filteredReports
     .map((r) => {
       const previewSrc = r.preview ? r.preview : PREVIEW_PLACEHOLDER;
-      const delBtn = canDeleteReport(r)
-        ? `<button type="button" class="bi-delete-btn absolute top-2 right-2 z-10 rounded-lg bg-red-600/90 px-2 py-1 text-[10px] font-semibold text-white opacity-0 group-hover:opacity-100 transition" data-delete="${encodeURIComponent(r.relativePath)}" title="Excluir relatório">Excluir</button>`
+      const canManageThis = canDeleteReport(r);
+      const manageBtns = canManageThis
+        ? `<div class="absolute top-2 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition">
+            <button type="button" class="bi-edit-btn rounded-lg bg-slate-900/80 px-2 py-1 text-[10px] font-semibold text-white hover:bg-slate-900" data-edit="${encodeURIComponent(r.relativePath)}" title="Editar relatório">Editar</button>
+            <button type="button" class="bi-delete-btn rounded-lg bg-red-600/90 px-2 py-1 text-[10px] font-semibold text-white hover:bg-red-600" data-delete="${encodeURIComponent(r.relativePath)}" title="Excluir relatório">Excluir</button>
+          </div>`
         : '';
       return `
         <article class="hub-card rounded-2xl overflow-hidden cursor-pointer group relative" data-open="${encodeURIComponent(r.file)}">
-          ${delBtn}
+          ${manageBtns}
           <div class="h-44 relative overflow-hidden bg-black">
             <img src="${previewSrc}" alt="" class="preview-img js-preview-thumb w-full h-full object-cover opacity-95" loading="lazy">
             <div class="hub-preview-overlay absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-3">
@@ -512,6 +615,7 @@ function renderCards(filteredReports) {
   grid.querySelectorAll('[data-open]').forEach((el) => {
     el.addEventListener('click', (ev) => {
       if (ev.target.closest('.bi-delete-btn')) return;
+      if (ev.target.closest('.bi-edit-btn')) return;
       openReport(decodeURIComponent(el.getAttribute('data-open')));
     });
   });
@@ -519,6 +623,14 @@ function renderCards(filteredReports) {
     btn.addEventListener('click', (ev) => {
       ev.stopPropagation();
       deleteReport(decodeURIComponent(btn.getAttribute('data-delete')));
+    });
+  });
+  grid.querySelectorAll('.bi-edit-btn').forEach((btn) => {
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const rel = decodeURIComponent(btn.getAttribute('data-edit'));
+      const r = reportsForDisplay().find((x) => x.relativePath === rel);
+      if (r) openEditModal(r);
     });
   });
   grid.querySelectorAll('img.js-preview-thumb').forEach((img) => {
@@ -550,8 +662,6 @@ async function openReport(winPath) {
 
 function filterByArea(area) {
   selectedArea = area;
-  const searchEl = document.getElementById('search-input');
-  if (searchEl) searchEl.value = '';
   if (area === null) {
     document.getElementById('area-title').textContent = allReportsTitleTerm();
     renderCards(reportsForDisplay());
@@ -560,22 +670,15 @@ function filterByArea(area) {
     renderCards(reportsForMplRoot());
   } else {
     document.getElementById('area-title').textContent = area;
-    renderCards(reportsForDisplay().filter((r) => r.area === area));
+    renderCards(
+      reportsForDisplay().filter(
+        (r) => r.area === area || (r.area && r.area.startsWith(area + '/')),
+      ),
+    );
   }
-  renderAreas();
+  renderViewMenu();
 }
 
-document.getElementById('search-input')?.addEventListener('input', (e) => {
-  const term = e.target.value.toLowerCase().trim();
-  selectedArea = null;
-  const allowed = reportsForDisplay();
-  const filtered = term
-    ? allowed.filter((r) => r.title.toLowerCase().includes(term) || r.area.toLowerCase().includes(term))
-    : allowed;
-  document.getElementById('area-title').textContent = term ? 'Resultados da busca' : allReportsTitleTerm();
-  renderCards(filtered);
-  renderAreas();
-});
 
 document.getElementById('launcher-helper-banner-dismiss')?.addEventListener('click', () => {
   try {
@@ -611,40 +714,84 @@ function setUploadMsg(text, isError) {
 function fillManageAreaSelect() {
   const sel = document.getElementById('bi-upload-area');
   if (!sel) return;
+  const allKeys = (directoryCatalog || []).map((d) => d.areaKey).filter(Boolean);
   const keys = manageAreaKeys.length
     ? manageAreaKeys
     : hubSession?.access?.type === 'scoped'
       ? hubSession.access.allowedAreaKeys || []
-      : mplSubAreas.map((s) => s.key);
-  sel.innerHTML = keys
+      : allKeys;
+  sel.innerHTML = (keys || [])
     .map((k) => `<option value="${k.replace(/"/g, '&quot;')}">${k}</option>`)
     .join('');
 }
 
-async function loadBiHistory() {
-  const box = document.getElementById('bi-history-list');
-  if (!box || !hubSession?.canManageBi) return;
-  box.innerHTML = '<p>A carregar…</p>';
+async function loadDirHistory() {
+  const box = document.getElementById('dir-history-list');
+  if (!box) return;
+  if (hubSession?.user?.role !== 'admin') {
+    box.innerHTML = '<p class="text-sm hub-section-label">Histórico disponível apenas para administradores.</p>';
+    return;
+  }
+  const reqId = ++dirHistoryReq;
+  box.innerHTML = '<p class="text-sm hub-section-label">A carregar…</p>';
   try {
-    const data = await fetchJson('/api/bi-files/history?limit=30');
-    const entries = data.entries || [];
+    const data = await fetchJson('/api/directories/history?limit=30');
+    if (reqId !== dirHistoryReq) return;
+    const entries = Array.isArray(data.entries) ? data.entries : [];
     if (!entries.length) {
-      box.innerHTML = '<p>Sem registos ainda.</p>';
+      box.innerHTML = '<p class="text-sm hub-section-label">Sem registos ainda.</p>';
       return;
     }
     box.innerHTML = entries
       .map((e) => {
-        const action = e.action === 'upload' ? 'Inseriu' : 'Excluiu';
+        const action =
+          e.action === 'create' ? 'Criou' : e.action === 'rename' ? 'Renomeou' : 'Excluiu';
         const when = e.createdAt ? new Date(e.createdAt).toLocaleString('pt-BR') : '';
-        return `<div class="rounded-lg border border-[var(--panel-border)] px-2 py-1.5">
-          <span class="font-medium text-[var(--text-primary)]">${action}</span>
-          <span class="font-mono text-[10px]"> ${e.fileName}</span>
-          <span class="block text-[10px]">${e.username} · ${e.areaKey} · ${when}</span>
+        const pathDetail =
+          e.action === 'rename' && e.oldAreaKey
+            ? `<span class="font-mono text-xs block mt-1 leading-snug">${escapeHtml(e.oldAreaKey)} → ${escapeHtml(e.areaKey)}</span>`
+            : `<span class="font-mono text-xs block mt-1 leading-snug">${escapeHtml(e.areaKey)}</span>`;
+        return `<div class="rounded-lg border border-[var(--panel-border)] px-3 py-2.5 space-y-1">
+          <span class="text-sm font-semibold text-[var(--text-primary)]">${action}</span>
+          ${pathDetail}
+          <span class="block text-xs hub-section-label">${escapeHtml(e.username)} · ${when}</span>
         </div>`;
       })
       .join('');
   } catch (err) {
-    box.innerHTML = `<p class="text-red-500">${err.message || 'Erro ao carregar histórico.'}</p>`;
+    if (reqId !== dirHistoryReq) return;
+    box.innerHTML = `<p class="text-sm text-red-500">${err.message || 'Erro ao carregar histórico.'}</p>`;
+  }
+}
+
+async function loadBiHistory() {
+  const box = document.getElementById('bi-history-list');
+  if (!box) return;
+  if (!hubSession?.canManageBi) {
+    box.innerHTML = '<p class="text-sm hub-section-label">Sem permissão para ver o histórico.</p>';
+    return;
+  }
+  box.innerHTML = '<p class="text-sm hub-section-label">A carregar…</p>';
+  try {
+    const data = await fetchJson('/api/bi-files/history?limit=30');
+    const entries = data.entries || [];
+    if (!entries.length) {
+      box.innerHTML = '<p class="text-sm hub-section-label">Sem registos ainda.</p>';
+      return;
+    }
+    box.innerHTML = entries
+      .map((e) => {
+        const action = e.action === 'upload' ? 'Inseriu' : e.action === 'edit' ? 'Editou' : 'Excluiu';
+        const when = e.createdAt ? new Date(e.createdAt).toLocaleString('pt-BR') : '';
+        return `<div class="rounded-lg border border-[var(--panel-border)] px-3 py-2.5 space-y-1">
+          <span class="text-sm font-semibold text-[var(--text-primary)]">${action}</span>
+          <span class="font-mono text-xs block leading-snug">${escapeHtml(e.fileName)}</span>
+          <span class="block text-xs hub-section-label">${escapeHtml(e.username)} · ${escapeHtml(e.areaKey)} · ${when}</span>
+        </div>`;
+      })
+      .join('');
+  } catch (err) {
+    box.innerHTML = `<p class="text-sm text-red-500">${err.message || 'Erro ao carregar histórico.'}</p>`;
   }
 }
 
@@ -652,6 +799,7 @@ function openManageModal() {
   fillManageAreaSelect();
   setUploadMsg('');
   document.getElementById('bi-upload-file').value = '';
+  document.getElementById('bi-upload-preview').value = '';
   document.getElementById('bi-manage-modal')?.classList.remove('hidden');
   loadBiHistory();
 }
@@ -692,7 +840,9 @@ document.getElementById('bi-upload-form')?.addEventListener('submit', async (e) 
   setUploadMsg('A enviar…', false);
   const areaKey = document.getElementById('bi-upload-area')?.value;
   const fileInput = document.getElementById('bi-upload-file');
+  const previewInput = document.getElementById('bi-upload-preview');
   const file = fileInput?.files?.[0];
+  const preview = previewInput?.files?.[0] || null;
   if (!areaKey || !file) {
     setUploadMsg('Selecione área e ficheiro .pbix.', true);
     return;
@@ -701,6 +851,7 @@ document.getElementById('bi-upload-form')?.addEventListener('submit', async (e) 
   fd.append('areaKey', areaKey);
   fd.append('fileName', file.name);
   fd.append('file', file);
+  if (preview) fd.append('preview', preview);
   try {
     const r = await fetch('/api/bi-files/upload', {
       method: 'POST',
@@ -711,10 +862,386 @@ document.getElementById('bi-upload-form')?.addEventListener('submit', async (e) 
     if (!r.ok) throw new Error(data.error || 'Falha no envio.');
     setUploadMsg('Relatório enviado com sucesso.', false);
     fileInput.value = '';
+    previewInput.value = '';
     await refreshReportsView();
     loadBiHistory();
   } catch (err) {
     setUploadMsg(err.message || 'Erro no envio.', true);
+  }
+});
+
+function setEditMsg(text, isError) {
+  const el = document.getElementById('bi-edit-msg');
+  if (!el) return;
+  if (!text) {
+    el.classList.add('hidden');
+    return;
+  }
+  el.textContent = text;
+  el.classList.remove('hidden');
+  el.classList.toggle('text-red-500', !!isError);
+  el.classList.toggle('text-emerald-600', !isError);
+}
+
+function openEditModal(report) {
+  if (!report?.relativePath) return;
+  document.getElementById('bi-edit-relative-path').value = report.relativePath;
+  document.getElementById('bi-edit-title-input').value = report.title || '';
+  document.getElementById('bi-edit-preview').value = '';
+  setEditMsg('');
+
+  const img = document.getElementById('bi-edit-current-preview');
+  if (img) img.src = report.preview ? report.preview : PREVIEW_PLACEHOLDER;
+
+  document.getElementById('bi-edit-modal')?.classList.remove('hidden');
+}
+
+function closeEditModal() {
+  document.getElementById('bi-edit-modal')?.classList.add('hidden');
+}
+
+document.getElementById('bi-edit-close')?.addEventListener('click', closeEditModal);
+document.getElementById('bi-edit-cancel')?.addEventListener('click', closeEditModal);
+document.getElementById('bi-edit-modal')?.addEventListener('click', (e) => {
+  if (e.target.id === 'bi-edit-modal') closeEditModal();
+});
+
+document.getElementById('bi-edit-save')?.addEventListener('click', async () => {
+  const relativePath = document.getElementById('bi-edit-relative-path')?.value;
+  const newTitle = document.getElementById('bi-edit-title-input')?.value?.trim();
+  const previewInput = document.getElementById('bi-edit-preview');
+  const preview = previewInput?.files?.[0] || null;
+
+  if (!relativePath || !newTitle) {
+    setEditMsg('Informe o nome do PBI.', true);
+    return;
+  }
+
+  setEditMsg('A guardar…', false);
+  const fd = new FormData();
+  fd.append('relativePath', relativePath);
+  fd.append('newTitle', newTitle);
+  if (preview) fd.append('preview', preview);
+
+  try {
+    const r = await fetch('/api/bi-files/file', {
+      method: 'PATCH',
+      credentials: 'include',
+      body: fd,
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || 'Falha ao guardar.');
+    setEditMsg('Alterações guardadas.', false);
+    closeEditModal();
+    await refreshReportsView();
+    loadBiHistory();
+  } catch (err) {
+    setEditMsg(err.message || 'Erro ao guardar.', true);
+  }
+});
+
+function setActiveTab(tabId) {
+  const tabs = document.querySelectorAll('.hub-nav-tab[data-tab]');
+  tabs.forEach((btn) => {
+    const id = btn.getAttribute('data-tab');
+    if (id === tabId) btn.classList.add('is-active');
+    else btn.classList.remove('is-active');
+  });
+}
+
+async function loadDirectoriesCatalog() {
+  try {
+    const data = await fetchJson('/api/directories');
+    directoryCatalog = data.directories || [];
+  } catch (_) {
+    directoryCatalog = [];
+  }
+}
+
+async function refreshDirectoryUi() {
+  await loadDirectoriesCatalog();
+  await loadManageAreas();
+  try {
+    renderViewMenu();
+    renderDirectoryList();
+  } catch (err) {
+    console.error('[bi-hub] refreshDirectoryUi:', err);
+    const listBox = document.getElementById('dir-list');
+    if (listBox) {
+      listBox.innerHTML =
+        '<p class="text-xs text-red-500">Não foi possível desenhar a árvore de diretórios. Recarregue a página.</p>';
+    }
+  } finally {
+    await loadDirHistory();
+  }
+}
+
+function initNavInteractions() {
+  const tabHome = document.getElementById('tab-home');
+  const tabView = document.getElementById('tab-view');
+  const viewMenu = document.getElementById('view-megamenu');
+  const tabGestaoPbi = document.getElementById('tab-gestao-pbi');
+  const tabGestaoDir = document.getElementById('tab-gestao-diretorio');
+
+  if (tabHome) {
+    tabHome.addEventListener('click', () => {
+      selectedArea = null;
+      setActiveTab('home');
+      document.getElementById('area-title').textContent = allReportsTitleTerm();
+      renderCards(reportsForDisplay());
+      renderViewMenu();
+    });
+  }
+
+  if (tabView && viewMenu) {
+    let hoverTimeout = null;
+
+    function openMenu() {
+      clearTimeout(hoverTimeout);
+      viewMenu.classList.remove('hidden');
+    }
+    function closeMenuDelayed() {
+      clearTimeout(hoverTimeout);
+      hoverTimeout = setTimeout(() => {
+        viewMenu.classList.add('hidden');
+      }, 180);
+    }
+
+    tabView.addEventListener('mouseenter', openMenu);
+    tabView.addEventListener('mouseleave', closeMenuDelayed);
+    viewMenu.addEventListener('mouseenter', () => {
+      clearTimeout(hoverTimeout);
+    });
+    viewMenu.addEventListener('mouseleave', closeMenuDelayed);
+
+    tabView.addEventListener('click', () => {
+      if (viewMenu.classList.contains('hidden')) {
+        viewMenu.classList.remove('hidden');
+      } else {
+        viewMenu.classList.add('hidden');
+      }
+    });
+  }
+
+  if (tabGestaoPbi) {
+    tabGestaoPbi.addEventListener('click', () => {
+      const manageBtn = document.getElementById('bi-manage-open');
+      if (manageBtn && !manageBtn.classList.contains('hidden')) {
+        manageBtn.click();
+        setActiveTab('gestao-pbi');
+      }
+    });
+  }
+
+  if (tabGestaoDir) {
+    tabGestaoDir.addEventListener('click', () => {
+      if (hubSession?.user?.role === 'admin') {
+        openDirectoryModal();
+        setActiveTab('gestao-diretorio');
+      }
+    });
+  }
+}
+
+function setDirMsg(text, isError) {
+  const el = document.getElementById('dir-manage-msg');
+  if (!el) return;
+  if (!text) {
+    el.classList.add('hidden');
+    return;
+  }
+  el.textContent = text;
+  el.classList.remove('hidden');
+  el.classList.toggle('text-red-500', !!isError);
+  el.classList.toggle('text-emerald-600', !isError);
+}
+
+function renderDirectoryList() {
+  const box = document.getElementById('dir-list');
+  if (!box) return;
+
+  const byKey = new Map((directoryCatalog || []).map((d) => [d.areaKey, d]));
+  const allKeys = Array.from(byKey.keys()).filter(Boolean);
+
+  if (!allKeys.length) {
+    box.innerHTML = '<p class="text-xs hub-section-label">Sem diretórios. Use o formulário acima para criar na raiz.</p>';
+    return;
+  }
+
+  const { roots, childrenMap } = buildDirectoryTree(allKeys);
+
+  if (dirCreateParentKey) expandTreeAncestors(dirCreateParentKey, dirTreeExpanded);
+
+  const renderManageNode = (key) => {
+    const entry = byKey.get(key);
+    const id = entry?.id;
+    const children = childrenMap.get(key) || [];
+    const hasChildren = children.length > 0;
+    const isExpanded = dirTreeExpanded.has(key);
+    const isParent = dirCreateParentKey === key;
+    const parentClass = isParent ? ' dir-parent-selected' : '';
+    const label = areaKeyLabel(key);
+    const fullPath = key !== label ? `<span class="text-[10px] hub-section-label truncate block sm:inline sm:ml-1">${escapeHtml(key)}</span>` : '';
+
+    const toggle = hasChildren
+      ? `<button type="button" class="hub-tree-toggle self-start shrink-0" data-dir-tree-toggle="${escapeAttr(key)}" aria-label="Mostrar ou ocultar subpastas" aria-expanded="${isExpanded}">
+           <i class="fa-solid fa-chevron-right hub-tree-chevron${isExpanded ? ' is-open' : ''}" aria-hidden="true"></i>
+         </button>`
+      : '<span class="hub-tree-spacer self-start shrink-0" aria-hidden="true"></span>';
+
+    const adminRow =
+      id != null
+        ? `<div class="flex flex-wrap gap-2 mt-2 sm:mt-0 sm:shrink-0 w-full sm:w-auto">
+            <input class="hub-search min-w-0 flex-1 rounded-xl py-1.5 px-2 text-xs sm:max-w-[220px]" value="${escapeAttr(key)}" data-dir-name="${id}" title="area_key completo">
+            <button type="button" class="rounded-lg border border-[var(--panel-border)] px-2 py-1 text-[10px] font-semibold hover:border-[var(--v-orange)] hover:text-[var(--v-orange)] transition" data-dir-save="${id}">Renomear</button>
+            <button type="button" class="rounded-lg border border-red-600/35 px-2 py-1 text-[10px] font-semibold text-red-700 dark:text-red-400 hover:border-red-500 transition" data-dir-del="${id}">Excluir</button>
+          </div>`
+        : '';
+
+    return `
+      <div class="dir-tree-item hub-tree-branch${parentClass}${isExpanded ? ' is-expanded' : ''}">
+        <div class="dir-tree-row flex flex-col sm:flex-row sm:items-start gap-1 border border-[var(--panel-border)] rounded-xl p-2">
+          <div class="hub-tree-row min-w-0 flex-1">
+            ${toggle}
+            <button type="button" class="dir-tree-pick min-w-0 flex-1" data-dir-pick-parent="${escapeAttr(key)}" title="Criar subpasta aqui">
+              <i class="fa-solid fa-folder hub-icon-orange text-xs w-4 shrink-0"></i>
+              <span class="font-medium truncate">${escapeHtml(label)}</span>
+              ${fullPath}
+            </button>
+          </div>
+          ${adminRow}
+        </div>
+        ${
+          hasChildren
+            ? `<div class="hub-tree-children space-y-1 mt-1${isExpanded ? '' : ' hidden'}">${children.map(renderManageNode).join('')}</div>`
+            : ''
+        }
+      </div>`;
+  };
+
+  const rootPickClass = dirCreateParentKey === null ? ' dir-parent-selected' : '';
+  box.innerHTML = `
+    <div class="dir-tree-item${rootPickClass} mb-2">
+      <button type="button" class="dir-tree-pick w-full border border-dashed border-[var(--panel-border)] rounded-xl" data-dir-pick-parent="" title="Criar pasta no nível superior">
+        <i class="fa-solid fa-folder-plus hub-icon-blue text-xs w-4 shrink-0"></i>
+        <span>Raiz — novo diretório no nível superior</span>
+      </button>
+    </div>
+    ${roots.map(renderManageNode).join('')}
+  `;
+
+  box.querySelectorAll('[data-dir-tree-toggle]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const key = btn.getAttribute('data-dir-tree-toggle');
+      if (!key) return;
+      if (dirTreeExpanded.has(key)) dirTreeExpanded.delete(key);
+      else dirTreeExpanded.add(key);
+      renderDirectoryList();
+    });
+  });
+
+  box.querySelectorAll('[data-dir-pick-parent]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const raw = btn.getAttribute('data-dir-pick-parent');
+      setDirCreateParent(raw === '' || raw == null ? null : raw);
+      document.getElementById('dir-create-name')?.focus();
+    });
+  });
+
+  box.querySelectorAll('[data-dir-save]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = Number(btn.getAttribute('data-dir-save'));
+      const input = box.querySelector(`[data-dir-name="${id}"]`);
+      const areaKey = input?.value?.trim();
+      if (!id || !areaKey) return;
+      setDirMsg('A renomear…', false);
+      try {
+        await fetchJson('/api/directories/' + id, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ areaKey }),
+        });
+        await refreshDirectoryUi();
+        setDirMsg('Diretório atualizado.', false);
+      } catch (err) {
+        setDirMsg(err.message || 'Erro ao renomear.', true);
+      }
+    });
+  });
+
+  box.querySelectorAll('[data-dir-del]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = Number(btn.getAttribute('data-dir-del'));
+      if (!id) return;
+      if (!confirm('Excluir este diretório do disco e do sistema?')) return;
+      setDirMsg('A excluir…', false);
+      try {
+        await fetchJson('/api/directories/' + id, { method: 'DELETE' });
+        await refreshDirectoryUi();
+        setDirMsg('Diretório excluído.', false);
+      } catch (err) {
+        setDirMsg(err.message || 'Erro ao excluir.', true);
+      }
+    });
+  });
+}
+
+function openDirectoryModal() {
+  setDirMsg('');
+  dirCreateParentKey = null;
+  const parentLabel = document.getElementById('dir-create-parent-label');
+  if (parentLabel) parentLabel.textContent = formatDirParentLabel(null);
+  const nameInput = document.getElementById('dir-create-name');
+  if (nameInput) nameInput.value = '';
+  document.getElementById('dir-manage-modal')?.classList.remove('hidden');
+  loadDirHistory();
+  refreshDirectoryUi().catch((err) => {
+    console.error('[bi-hub] refreshDirectoryUi:', err);
+    try {
+      renderDirectoryList();
+    } catch (_) {
+      /* ignore */
+    }
+    loadDirHistory();
+  });
+}
+
+function closeDirectoryModal() {
+  document.getElementById('dir-manage-modal')?.classList.add('hidden');
+}
+
+document.getElementById('dir-manage-close')?.addEventListener('click', closeDirectoryModal);
+document.getElementById('dir-manage-modal')?.addEventListener('click', (e) => {
+  if (e.target.id === 'dir-manage-modal') closeDirectoryModal();
+});
+
+document.getElementById('dir-create-parent-root')?.addEventListener('click', () => {
+  setDirCreateParent(null);
+  document.getElementById('dir-create-name')?.focus();
+});
+
+document.getElementById('dir-create-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const childName = document.getElementById('dir-create-name')?.value?.trim();
+  const areaKey = joinAreaKey(dirCreateParentKey, childName);
+  if (!areaKey) {
+    setDirMsg('Nome inválido. Digite apenas o nome da pasta (sem barras /).', true);
+    return;
+  }
+  setDirMsg('A criar…', false);
+  try {
+    await fetchJson('/api/directories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ areaKey }),
+    });
+    await refreshDirectoryUi();
+    document.getElementById('dir-create-name').value = '';
+    setDirMsg(`Diretório criado: ${areaKey}`, false);
+  } catch (err) {
+    setDirMsg(err.message || 'Erro ao criar.', true);
   }
 });
 
@@ -733,9 +1260,11 @@ document.getElementById('bi-upload-form')?.addEventListener('submit', async (e) 
     reports = REPORTS_FALLBACK.slice();
     await loadManageAreas();
     await loadReportsFromApi();
+    await loadDirectoriesCatalog();
     applyHeaderProfile();
-    renderAreas();
     renderCards(reportsForDisplay());
+    renderViewMenu();
+    initNavInteractions();
     probeLauncher();
   } catch (err) {
     console.error('[bi-hub] bootstrap:', err);

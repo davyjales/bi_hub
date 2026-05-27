@@ -5,8 +5,11 @@
 
   const ROLE_LABEL = {
     admin: 'Administrador',
-    viewer_all: 'Visualização geral',
-    viewer_area: 'Visualização por diretório',
+    viewer_all: 'Owner ADM',
+    owner_setor: 'Owner Setor',
+    viewer_area: 'Viewer',
+    
+
   };
 
   const STATUS_LABEL = {
@@ -84,14 +87,14 @@
     const role =
       [...document.querySelectorAll('input[name="create-role"]')].find((r) => r.checked)?.value ||
       'viewer_all';
-    document.getElementById('create-dirs').classList.toggle('hidden', role !== 'viewer_area');
+    document.getElementById('create-dirs').classList.toggle('hidden', role !== 'viewer_area' && role !== 'owner_setor');
   }
 
   function toggleEditDirs() {
     const role =
       [...document.querySelectorAll('input[name="edit-role"]')].find((r) => r.checked)?.value ||
       'viewer_all';
-    document.getElementById('edit-dirs').classList.toggle('hidden', role !== 'viewer_area');
+    document.getElementById('edit-dirs').classList.toggle('hidden', role !== 'viewer_area' && role !== 'owner_setor');
   }
 
   async function reloadUsersTable() {
@@ -104,7 +107,7 @@
     if (!users.length) {
       const tr = document.createElement('tr');
       tr.innerHTML =
-        '<td colspan="6" class="px-4 py-6 text-center text-sm text-[var(--text-muted)]">Sem utilizadores</td>';
+        '<td colspan="7" class="px-4 py-6 text-center text-sm text-[var(--text-muted)]">Sem utilizadores</td>';
       tbody.appendChild(tr);
       return;
     }
@@ -112,7 +115,7 @@
     for (const u of users) {
       let dirTxt = '—';
 
-      if (u.role === 'viewer_area') {
+      if (u.role === 'viewer_area' || u.role === 'owner_setor') {
         const keys = Array.isArray(u.directories)
           ? u.directories.map((d) => d.areaKey || d.area_key || '').filter(Boolean)
           : [];
@@ -127,6 +130,10 @@
       tr.innerHTML =
         '<td class="px-4 py-3 font-medium">' +
         escapeHtml(u.username) +
+        '</td>' +
+
+        '<td class="px-4 py-3 text-sm text-[var(--text-muted)]">' +
+        escapeHtml(u.email || '—') +
         '</td>' +
 
         '<td class="px-4 py-3 text-sm">' +
@@ -211,6 +218,7 @@
 
     document.getElementById('edit-user-id').value = String(uid);
     document.getElementById('edit-username').value = u.username;
+    document.getElementById('edit-email').value = u.email || '';
 
     document.querySelectorAll('input[name="edit-role"]').forEach((r) => {
       r.checked = r.value === u.role;
@@ -276,6 +284,7 @@
       e.preventDefault();
 
       const username = document.getElementById('create-username').value.trim();
+      const email = document.getElementById('create-email').value.trim();
       const password = document.getElementById('create-password').value;
       const role = [...document.querySelectorAll('input[name="create-role"]')].find((r) => r.checked)?.value;
 
@@ -283,9 +292,9 @@
         .map((o) => Number(o.value))
         .filter((n) => n > 0);
 
-      const payload = { username, password, role };
+      const payload = { username, email, password, role };
 
-      if (role === 'viewer_area') payload.directoryIds = ids;
+      if (role === 'viewer_area' || role === 'owner_setor') payload.directoryIds = ids;
 
       await fetchJson('/api/users', {
         method: 'POST',
@@ -304,6 +313,7 @@
       if (!id) return;
 
       const username = document.getElementById('edit-username').value.trim();
+      const email = document.getElementById('edit-email').value.trim();
       const password = document.getElementById('edit-password').value;
       const role = [...document.querySelectorAll('input[name="edit-role"]')].find((r) => r.checked)?.value;
 
@@ -311,7 +321,7 @@
         .map((o) => Number(o.value))
         .filter((n) => n > 0);
 
-      const body = { username, role, directoryIds: ids };
+      const body = { username, email, role, directoryIds: ids };
       if (password.trim().length) body.password = password;
 
       await fetchJson('/api/users/' + id, {

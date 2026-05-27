@@ -1,12 +1,13 @@
 const express = require('express');
 const usersModel = require('../models/users');
 const { hashPassword } = require('../lib/password');
+const { normalizeEmail, isValidEmail } = require('../lib/emailValidate');
 const { pool } = require('../dbPool');
 const { requireAuth, requireAdmin } = require('../middleware/resolveUser');
 
 
 const USERNAME_RE = /^[a-zA-Z0-9._-]{3,64}$/;
-const ROLES = new Set(['admin', 'viewer_all', 'viewer_area']);
+const ROLES = new Set(['admin', 'viewer_all', 'viewer_area', 'owner_setor']);
 
 const router = express.Router();
 router.use(requireAuth);
@@ -36,6 +37,7 @@ router.get('/', async (_req, res, next) => {
       users: list.map((u) => ({
         id: u.id,
         username: u.username,
+        email: u.email || null,
         role: u.role,
         status: u.status || 'pending',
         createdAt: u.createdAt,
@@ -53,17 +55,19 @@ router.post('/', async (req, res, next) => {
   try {
 
     const username = String(req.body.username || '').trim();
+    const email = normalizeEmail(req.body.email);
     const password = String(req.body.password || '');
     const role = String(req.body.role || '').trim();
     const err = [];
 
     if (!USERNAME_RE.test(username)) err.push('Nome de utilizador inválido (3–64, letras, números, . _ -).');
+    if (!isValidEmail(email)) err.push('E-mail inválido.');
     if (password.length < 8) err.push('Palavra-passe deve ter pelo menos 8 caracteres.');
     if (!ROLES.has(role)) err.push('Perfil inválido.');
 
     let dirIdsFinal = [];
 
-    if (role === 'viewer_area') {
+    if (role === 'viewer_area' || role === 'owner_setor') {
 
       dirIdsFinal = await validatedDirectoryIds(req.body.directoryIds);
 
@@ -75,15 +79,17 @@ router.post('/', async (req, res, next) => {
     }
 
     const existing = await usersModel.findByUsername(username);
+    const emailClash = await usersModel.findByEmail(email);
 
     if (existing) err.push('Já existe um utilizador com este nome.');
+    if (emailClash) err.push('Já existe um utilizador com este e-mail.');
     if (err.length) return res.status(400).json({ ok: false, error: err.join(' ') });
 
     const phash = await hashPassword(password);
 
-    const newId = await usersModel.insertUser(username, phash, role);
+    const newId = await usersModel.insertUser(username, phash, role, 'approved', email);
 
-    if (role === 'viewer_area') await usersModel.setDirectoryAccess(newId, dirIdsFinal);
+    if (role === 'viewer_area' || role === 'owner_setor') await usersModel.setDirectoryAccess(newId, dirIdsFinal);
 
     else await usersModel.setDirectoryAccess(newId, []);
 
@@ -100,7 +106,7 @@ router.post('/', async (req, res, next) => {
         id: created.id,
 
         username: created.username,
-
+        email: created.email || null,
         role: created.role,
 
         status: created.status || 'pending',
@@ -129,9 +135,10 @@ router.patch('/:id', async (req, res, next) => {
 
     const body = req.body || {};
 
-    const { username: bodyUsername, password, role: bodyRole, directoryIds } = body;
+    const { username: bodyUsername, email: bodyEmail, password, role: bodyRole, directoryIds } = body;
 
     const usernameProvided = Object.prototype.hasOwnProperty.call(body, 'username');
+    const emailProvided = Object.prototype.hasOwnProperty.call(body, 'email');
 
     if (usernameProvided) {
 
@@ -145,6 +152,18 @@ router.patch('/:id', async (req, res, next) => {
 
       await usersModel.updateUserFields(id, { username: u });
 
+    }
+
+    if (emailProvided) {
+      const mail = normalizeEmail(bodyEmail);
+      if (!isValidEmail(mail)) {
+        return res.status(400).json({ ok: false, error: 'E-mail inválido.' });
+      }
+      const clashMail = await usersModel.findByEmail(mail);
+      if (clashMail && clashMail.id !== id) {
+        return res.status(400).json({ ok: false, error: 'E-mail já está em uso.' });
+      }
+      await usersModel.updateUserFields(id, { email: mail });
     }
 
     if (password != null && String(password).trim().length > 0) {
@@ -179,13 +198,13 @@ router.patch('/:id', async (req, res, next) => {
 
       nextRole = r;
 
-      if (nextRole !== 'viewer_area') await usersModel.setDirectoryAccess(id, []);
+      if (nextRole !== 'viewer_area' && nextRole !== 'owner_setor') await usersModel.setDirectoryAccess(id, []);
 
     }
 
     const dirsProvided = Object.prototype.hasOwnProperty.call(body, 'directoryIds');
 
-    if (nextRole === 'viewer_area' && dirsProvided) {
+    if ((nextRole === 'viewer_area' || nextRole === 'owner_setor') && dirsProvided) {
 
       const v = await validatedDirectoryIds(directoryIds);
 
@@ -200,7 +219,7 @@ router.patch('/:id', async (req, res, next) => {
 
       await usersModel.setDirectoryAccess(id, v);
 
-    } else if (roleProvided && nextRole === 'viewer_area' && !dirsProvided) {
+    } else if (roleProvided && (nextRole === 'viewer_area' || nextRole === 'owner_setor') && !dirsProvided) {
       const [[cntRow]] = await pool.query(
         `SELECT COUNT(*) AS c FROM user_directory_access WHERE user_id = ?`,
         [id],
@@ -233,7 +252,7 @@ router.patch('/:id', async (req, res, next) => {
         id: refreshed.id,
 
         username: refreshed.username,
-
+        email: refreshed.email || null,
         role: refreshed.role,
 
         status: refreshed.status || 'pending',

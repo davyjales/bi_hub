@@ -1,10 +1,14 @@
 -- Visteon BI Hub — estrutura MySQL (MariaDB do XAMPP)
 -- Charset utf8mb4 para suporte completo a acentuação.
 -- Populate diretórios + admin com `npm run seed` dentro da pasta `server` (.env obrigatório).
+--
+-- Para uma base já criada com uma versão antiga do schema, use as migrações em
+-- database/migrations/ (ex.: 001_owner_setor_audit_edit.sql) em vez de DROP/reimportar.
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
+DROP TABLE IF EXISTS hub_directory_audit;
 DROP TABLE IF EXISTS bi_file_audit;
 DROP TABLE IF EXISTS user_directory_access;
 DROP TABLE IF EXISTS hub_directories;
@@ -15,14 +19,16 @@ SET FOREIGN_KEY_CHECKS = 1;
 CREATE TABLE users (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
   username VARCHAR(64) NOT NULL,
+  email VARCHAR(255) NULL,
   password_hash VARCHAR(255) NOT NULL,
-  role ENUM('admin', 'viewer_all', 'viewer_area') NOT NULL,
+  role ENUM('admin', 'viewer_all', 'viewer_area', 'owner_setor') NOT NULL,
   status ENUM('pending', 'approved') NOT NULL DEFAULT 'pending',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_users_username (username)
+  UNIQUE KEY uq_users_username (username),
+  UNIQUE KEY uq_users_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Cada entrada representa um “diretório”/área (deve coincidir com o campo area dos relatórios no hub).
@@ -33,7 +39,7 @@ CREATE TABLE hub_directories (
   UNIQUE KEY uq_hub_directories_area_key (area_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Utilizado quando role = viewer_area (um usuário pode ter vários diretórios).
+-- Utilizado quando role = viewer_area ou owner_setor (um usuário pode ter vários diretórios).
 CREATE TABLE user_directory_access (
   user_id INT UNSIGNED NOT NULL,
   hub_directory_id SMALLINT UNSIGNED NOT NULL,
@@ -45,12 +51,29 @@ CREATE TABLE user_directory_access (
     ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Histórico de criação/renomeação/exclusão de diretórios (gestão de pastas).
+CREATE TABLE hub_directory_audit (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id INT UNSIGNED NOT NULL,
+  username VARCHAR(64) NOT NULL,
+  action ENUM('create', 'rename', 'delete') NOT NULL,
+  area_key VARCHAR(160) NOT NULL,
+  old_area_key VARCHAR(160) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_hub_directory_audit_created (created_at),
+  KEY idx_hub_directory_audit_user (user_id),
+  KEY idx_hub_directory_audit_area (area_key),
+  CONSTRAINT fk_hub_directory_audit_user FOREIGN KEY (user_id) REFERENCES users (id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Histórico de inserção/exclusão de relatórios .pbix no armazenamento do servidor.
 CREATE TABLE bi_file_audit (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id INT UNSIGNED NOT NULL,
   username VARCHAR(64) NOT NULL,
-  action ENUM('upload', 'delete') NOT NULL,
+  action ENUM('upload', 'delete', 'edit') NOT NULL,
   area_key VARCHAR(160) NOT NULL,
   file_name VARCHAR(255) NOT NULL,
   relative_path VARCHAR(512) NOT NULL,

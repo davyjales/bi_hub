@@ -62,8 +62,8 @@
           <p class="text-[10px] uppercase hub-section-label font-bold">Gestão manual</p>
           <h2 class="text-xl font-semibold text-[var(--text-primary)]">Criar utilizador</h2>
         </div>
-        <p class="text-xs hub-section-label max-w-md">
-          Perfis disponíveis: administrador global, visualizador geral, ou granular por diretório.
+          <p class="text-xs hub-section-label max-w-md">
+          Perfis disponíveis: Admin, Owner ADM, Owner Setor e Viewer.
         </p>
       </div>
       <form id="create-user-form" class="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -73,6 +73,10 @@
             <input id="create-username" class="hub-input" required maxlength="64" autocomplete="off">
           </div>
           <div class="space-y-1">
+            <label class="text-xs hub-section-label font-semibold uppercase" for="create-email">E-mail</label>
+            <input id="create-email" type="email" class="hub-input" required autocomplete="email" placeholder="nome@empresa.com">
+          </div>
+          <div class="space-y-1">
             <label class="text-xs hub-section-label font-semibold uppercase" for="create-password">Palavra-passe</label>
             <input id="create-password" type="password" class="hub-input" required minlength="8" autocomplete="new-password">
           </div>
@@ -80,8 +84,10 @@
         <div class="space-y-3">
           <p class="text-xs hub-section-label font-semibold uppercase">Perfil</p>
           <label class="flex items-start gap-2 text-sm"><input type="radio" name="create-role" value="admin"><span><strong>Admin</strong> — gestão da plataforma.</span></label>
-          <label class="flex items-start gap-2 text-sm"><input type="radio" name="create-role" value="viewer_all" checked><span><strong>Geral</strong> — vê todas as áreas.</span></label>
-          <label class="flex items-start gap-2 text-sm"><input type="radio" name="create-role" value="viewer_area"><span><strong>Por diretório</strong> — selecção em baixo obrigatória.</span></label>
+          <label class="flex items-start gap-2 text-sm"><input type="radio" name="create-role" value="viewer_all" checked><span><strong>Owner ADM</strong> — visualiza todas as áreas e pode gerenciar BI's.</span></label>
+          <label class="flex items-start gap-2 text-sm"><input type="radio" name="create-role" value="owner_setor"><span><strong>Owner Setor</strong> — visualiza apenas diretórios selecionados e pode gerir PBI nessas áreas.</span></label>
+          <label class="flex items-start gap-2 text-sm"><input type="radio" name="create-role" value="viewer_area"><span><strong>Viewer</strong> — apenas visualiza BI's, podendo acessar um ou mais diretórios.</span></label>
+          
           <div id="create-dirs" class="space-y-1 hidden">
             <label class="text-xs hub-section-label font-semibold uppercase" for="create-directories">Diretórios</label>
             <select id="create-directories" class="hub-input hub-select" multiple size="7"></select>
@@ -115,6 +121,10 @@
           <input id="edit-username" class="hub-input" autocomplete="off">
         </div>
         <div class="space-y-1">
+          <label class="text-xs hub-section-label font-semibold uppercase" for="edit-email">E-mail</label>
+          <input id="edit-email" type="email" class="hub-input" required autocomplete="email">
+        </div>
+        <div class="space-y-1">
           <label class="text-xs hub-section-label font-semibold uppercase" for="edit-password">Nova palavra-passe</label>
           <input id="edit-password" type="password" class="hub-input" placeholder="Opcional" autocomplete="new-password">
           <p class="text-[11px] hub-section-label">Em branco para manter atual.</p>
@@ -122,8 +132,10 @@
         <div class="space-y-3 md:col-span-2">
           <p class="text-xs hub-section-label font-semibold uppercase">Perfil</p>
           <label class="flex gap-2 text-sm"><input type="radio" name="edit-role" value="admin"><span>Admin</span></label>
-          <label class="flex gap-2 text-sm"><input type="radio" name="edit-role" value="viewer_all"><span>Visualizador geral</span></label>
-          <label class="flex gap-2 text-sm"><input type="radio" name="edit-role" value="viewer_area"><span>Diretorio específico</span></label>
+          <label class="flex gap-2 text-sm"><input type="radio" name="edit-role" value="viewer_all"><span>Owner ADM</span></label>
+          <label class="flex gap-2 text-sm"><input type="radio" name="edit-role" value="viewer_area"><span>Viewer</span></label>
+          <label class="flex gap-2 text-sm"><input type="radio" name="edit-role" value="owner_setor"><span>Owner Setor</span></label>
+
           <div id="edit-dirs" class="space-y-1 hidden">
             <label class="text-xs hub-section-label font-semibold uppercase" for="edit-directories">Seleccionar diretórios</label>
             <select id="edit-directories" class="hub-input hub-select" multiple size="7"></select>
@@ -141,6 +153,7 @@
           <thead class="bg-[var(--input-bg)] text-xs uppercase hub-section-label text-left tracking-wide">
             <tr>
               <th class="px-4 py-3">Nome</th>
+              <th class="px-4 py-3">E-mail</th>
               <th class="px-4 py-3">Perfil</th>
               <th class="px-4 py-3">Áreas autorizadas</th>
               <th class="px-4 py-3"></th>

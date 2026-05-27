@@ -19,8 +19,24 @@ async function listEntries({ limit = 100, userId = null, areaKeys = null } = {})
     vals.push(userId);
   }
   if (areaKeys && areaKeys.length) {
-    clauses.push(`area_key IN (${areaKeys.map(() => '?').join(', ')})`);
-    vals.push(...areaKeys);
+    // Suporta área-mãe -> descendentes (ex.: Finance -> Finance/2024/Q1)
+    // e MPL root (MPL -> MPL · ...).
+    const escapeLike = (s) => String(s || '').replace(/[\\%_]/g, (ch) => `\\${ch}`);
+    const ors = [];
+    for (const k of areaKeys) {
+      if (!k) continue;
+      ors.push('area_key = ?');
+      vals.push(k);
+
+      if (k === 'MPL') {
+        ors.push('area_key LIKE ? ESCAPE \'\\\'');
+        vals.push('MPL · %');
+      } else {
+        ors.push('area_key LIKE ? ESCAPE \'\\\'');
+        vals.push(escapeLike(k) + '/%');
+      }
+    }
+    if (ors.length) clauses.push(`(${ors.join(' OR ')})`);
   }
 
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';

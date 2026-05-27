@@ -32,22 +32,41 @@ function initTheme() {
   applyTheme(dark);
 }
 
-function showAuthError(params) {
-  const el = document.getElementById('auth-global-error');
-  if (!el || !params.get('err')) return;
-  el.textContent = decodeURIComponent(params.get('err'));
-  el.classList.remove('hidden');
+function showAuthMessages(params) {
+  const errEl = document.getElementById('auth-global-error');
+  const okEl = document.getElementById('auth-global-success');
+  if (errEl) {
+    if (params.get('err')) {
+      errEl.textContent = decodeURIComponent(params.get('err'));
+      errEl.classList.remove('hidden');
+    } else {
+      errEl.classList.add('hidden');
+      errEl.textContent = '';
+    }
+  }
+  if (okEl) {
+    if (params.get('info')) {
+      okEl.textContent = decodeURIComponent(params.get('info'));
+      okEl.classList.remove('hidden');
+    } else {
+      okEl.classList.add('hidden');
+      okEl.textContent = '';
+    }
+  }
 }
 
 function switchTab(which) {
   document.getElementById('pane-login').classList.toggle('hidden', which !== 'login');
   document.getElementById('pane-register').classList.toggle('hidden', which !== 'register');
+  document.getElementById('pane-forgot').classList.toggle('hidden', which !== 'forgot');
+
   const tabLogin = document.getElementById('tab-login');
   const tabRegister = document.getElementById('tab-register');
+  const active = 'text-[var(--text-primary)] border-[var(--v-orange)]';
+  const idle = 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-primary)]';
+
   if (tabLogin && tabRegister) {
-    const active = 'text-[var(--text-primary)] border-[var(--v-orange)]';
-    const idle = 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-primary)]';
-    if (which === 'login') {
+    if (which === 'login' || which === 'forgot') {
       tabLogin.className = `flex-1 py-3 text-sm font-semibold border-b-2 ${active}`;
       tabRegister.className = `flex-1 py-3 text-sm font-semibold border-b-2 ${idle}`;
     } else {
@@ -91,16 +110,42 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+async function applyPasswordResetAvailability() {
+  const warn = document.getElementById('forgot-mail-unavailable');
+  const form = document.getElementById('forgot-form');
+  const submit = form?.querySelector('button[type="submit"]');
+  let available = false;
+  try {
+    const r = await fetch('/api/auth/config', { cache: 'no-store' });
+    if (r.ok) {
+      const data = await r.json();
+      available = !!data.passwordResetAvailable;
+    }
+  } catch (_) {}
+  if (warn) warn.classList.toggle('hidden', available);
+  if (submit) submit.disabled = !available;
+  if (form) {
+    form.querySelectorAll('input').forEach((inp) => {
+      inp.disabled = !available;
+    });
+  }
+}
+
 async function initAuthPage() {
   initTheme();
   const params = new URLSearchParams(window.location.search);
-  showAuthError(params);
+  showAuthMessages(params);
+  await applyPasswordResetAvailability();
 
   document.getElementById('theme-toggle').addEventListener('click', () => {
     applyTheme(!document.documentElement.classList.contains('dark'));
   });
 
-  switchTab(params.get('tab') === 'register' ? 'register' : 'login');
+  const tab = params.get('tab');
+  if (tab === 'register') switchTab('register');
+  else if (tab === 'forgot') switchTab('forgot');
+  else switchTab('login');
+
   toggleDirBlock();
 
   document.querySelectorAll('input[name="role"]').forEach((el) => {
@@ -113,6 +158,10 @@ async function initAuthPage() {
 
   document.querySelectorAll('[data-switch-register]').forEach((el) => {
     el.addEventListener('click', () => switchTab('register'));
+  });
+
+  document.querySelectorAll('[data-switch-forgot]').forEach((el) => {
+    el.addEventListener('click', () => switchTab('forgot'));
   });
 
   const sel = document.getElementById('register-directory-select');

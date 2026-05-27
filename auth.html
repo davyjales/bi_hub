@@ -55,6 +55,7 @@
       </div>
 
       <div id="auth-global-error" class="mx-8 mt-4 hidden rounded-lg border border-red-500/35 bg-red-500/[0.08] px-3 py-2 text-xs text-[var(--text-primary)]"></div>
+      <div id="auth-global-success" class="mx-8 mt-4 hidden rounded-lg border border-emerald-500/35 bg-emerald-500/[0.08] px-3 py-2 text-xs text-[var(--text-primary)]"></div>
 
       <div id="pane-login" class="p-8 space-y-5">
         <form method="post" action="/auth/login" class="space-y-4">
@@ -71,8 +72,31 @@
           </button>
         </form>
         <p class="text-center text-xs hub-section-label">
+          <button type="button" data-switch-forgot class="hub-muted-link font-semibold">Esqueci a palavra-passe</button>
+          <span class="mx-1">·</span>
           Novo utilizador?
           <button type="button" data-switch-register class="hub-muted-link font-semibold">Criar registo</button>
+        </p>
+      </div>
+
+      <div id="pane-forgot" class="p-8 space-y-5 hidden">
+        <div id="forgot-mail-unavailable" class="hidden rounded-lg border border-amber-500/35 bg-amber-500/[0.08] px-3 py-2 text-xs text-[var(--text-primary)]">
+          A recuperação por e-mail não está disponível neste servidor. Contacte o administrador.
+        </div>
+        <p class="text-sm text-[var(--text-primary)] leading-relaxed">
+          Indique o e-mail associado à sua conta. Enviaremos uma palavra-passe temporária se a conta estiver activa.
+        </p>
+        <form id="forgot-form" method="post" action="/auth/forgot-password" class="space-y-4">
+          <div class="space-y-1">
+            <label class="text-xs hub-section-label font-semibold uppercase" for="forgot-email">E-mail</label>
+            <input id="forgot-email" name="email" type="email" required autocomplete="email" class="hub-input" placeholder="nome@empresa.com">
+          </div>
+          <button type="submit" class="hub-btn-primary">
+            Enviar nova palavra-passe <i class="fa-solid fa-envelope text-sm opacity-95"></i>
+          </button>
+        </form>
+        <p class="text-center text-xs hub-section-label">
+          <button type="button" data-switch-login class="hub-muted-link font-semibold">Voltar à entrada</button>
         </p>
       </div>
 
@@ -83,6 +107,11 @@
             <input id="reg-user" name="username" type="text" required autocomplete="username" class="hub-input">
           </div>
           <div class="space-y-1">
+            <label class="text-xs hub-section-label font-semibold uppercase" for="reg-email">E-mail</label>
+            <input id="reg-email" name="email" type="email" required autocomplete="email" class="hub-input" placeholder="nome@empresa.com">
+            <p class="text-[11px] hub-section-label">Usado para recuperar a palavra-passe.</p>
+          </div>
+          <div class="space-y-1">
             <label class="text-xs hub-section-label font-semibold uppercase" for="reg-pass">Palavra-passe</label>
             <input id="reg-pass" name="password" type="password" required minlength="8" autocomplete="new-password" class="hub-input">
             <p class="text-[11px] hub-section-label">Mínimo de 8 caracteres.</p>
@@ -91,16 +120,24 @@
             <p class="text-xs hub-section-label font-semibold uppercase">Perfil solicitado</p>
             <label class="flex items-start gap-2 text-sm text-[var(--text-primary)]">
               <input type="radio" name="role" value="viewer_all" class="mt-1" checked>
-              <span><strong>Visualizador geral</strong> — acesso a todas as áreas e relatórios.</span>
+              <span><strong>Owner ADM</strong> — acesso a todas as áreas e relatórios.</span>
+            </label>
+            <label class="flex items-start gap-2 text-sm text-[var(--text-primary)]">
+              <input type="radio" name="role" value="owner_setor" id="reg-role-setor" class="mt-1">
+              <span><strong>Owner Setor</strong> — pastas específicas com permissão de gestão.</span>
             </label>
             <label class="flex items-start gap-2 text-sm text-[var(--text-primary)]">
               <input type="radio" name="role" value="viewer_area" id="reg-role-area" class="mt-1">
-              <span><strong>Visualizador por diretório</strong> — apenas pastas específicas (é necessário seleccionar).</span>
+              <span><strong>Viewer</strong> — apenas pastas específicas (é necessário seleccionar).</span>
             </label>
+
             <p class="text-[11px] hub-section-label">
-              Perfis administrativos apenas por um administrador.
+              Perfis de Admin apenas por um administrador.
             </p>
+
+
           </div>
+
           <div id="register-dir-block" class="space-y-1 hidden">
             <label class="text-xs hub-section-label font-semibold uppercase" for="register-directory-select">Diretórios</label>
             <select id="register-directory-select" name="directory_ids" multiple class="hub-input hub-select" size="7"></select>
@@ -108,6 +145,7 @@
               Prima Ctrl (⌘ em macOS) para selecionar vários.
             </p>
           </div>
+
           <button type="submit" class="hub-btn-primary">
             Concluir registo <i class="fa-solid fa-user-plus text-sm opacity-95"></i>
           </button>

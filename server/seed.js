@@ -59,6 +59,7 @@ const DIR_KEYS = [
 const SEED_ADMIN_USER = process.env.SEED_ADMIN_USER || 'djales';
 
 const SEED_ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD || 'Visteon2020';
+const SEED_ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL || null;
 
 
 
@@ -97,15 +98,14 @@ async function main() {
   console.log(`[seed] A garantir utilizador administrador "${SEED_ADMIN_USER}"...`);
 
   await pool.query(
-
-    `INSERT INTO users (username, password_hash, role, status)
-
-      VALUES (?, ?, 'admin', 'approved')
-
-     ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), role = VALUES(role), status = VALUES(status)`,
-
-    [SEED_ADMIN_USER, hash],
-
+    `INSERT INTO users (username, email, password_hash, role, status)
+      VALUES (?, ?, ?, 'admin', 'approved')
+     ON DUPLICATE KEY UPDATE
+       password_hash = VALUES(password_hash),
+       role = VALUES(role),
+       status = VALUES(status),
+       email = COALESCE(VALUES(email), email)`,
+    [SEED_ADMIN_USER, SEED_ADMIN_EMAIL, hash],
   );
 
 

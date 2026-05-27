@@ -2,24 +2,38 @@ const { pool } = require('../dbPool');
 
 async function findByUsername(username) {
   const [rows] = await pool.query(
-    'SELECT id, username, password_hash AS passwordHash, role, status FROM users WHERE username = ? LIMIT 1',
+    `SELECT id, username, email, password_hash AS passwordHash, role, status
+       FROM users WHERE username = ? LIMIT 1`,
     [username],
+  );
+  return rows[0] || null;
+}
+
+async function findByEmail(email) {
+  const norm = String(email || '').trim().toLowerCase();
+  if (!norm) return null;
+  const [rows] = await pool.query(
+    `SELECT id, username, email, password_hash AS passwordHash, role, status
+       FROM users WHERE email = ? LIMIT 1`,
+    [norm],
   );
   return rows[0] || null;
 }
 
 async function findPublicById(id) {
   const [rows] = await pool.query(
-    'SELECT id, username, role, status, created_at AS createdAt, updated_at AS updatedAt FROM users WHERE id = ? LIMIT 1',
+    `SELECT id, username, email, role, status, created_at AS createdAt, updated_at AS updatedAt
+       FROM users WHERE id = ? LIMIT 1`,
     [id],
   );
   return rows[0] || null;
 }
 
-async function insertUser(username, passwordHash, role, status = 'pending') {
+async function insertUser(username, passwordHash, role, status = 'pending', email = null) {
+  const mail = email ? String(email).trim().toLowerCase() : null;
   const [r] = await pool.query(
-    'INSERT INTO users (username, password_hash, role, status) VALUES (?, ?, ?, ?)',
-    [username, passwordHash, role, status],
+    'INSERT INTO users (username, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?)',
+    [username, mail, passwordHash, role, status],
   );
   return r.insertId;
 }
@@ -29,18 +43,18 @@ async function setUserStatus(id, status) {
   return r.affectedRows > 0;
 }
 
-
 async function listUsers() {
   const [rows] = await pool.query(
     `SELECT 
         u.id,
         u.username,
+        u.email,
         u.role,
         u.status,
         u.created_at AS createdAt,
         u.updated_at AS updatedAt
      FROM users u
-     ORDER BY u.username ASC`
+     ORDER BY u.username ASC`,
   );
 
   const [accessRows] = await pool.query(
@@ -49,7 +63,7 @@ async function listUsers() {
         uda.hub_directory_id,
         d.area_key
      FROM user_directory_access uda
-     LEFT JOIN hub_directories d ON d.id = uda.hub_directory_id`
+     LEFT JOIN hub_directories d ON d.id = uda.hub_directory_id`,
   );
 
   const accessMap = {};
@@ -78,6 +92,7 @@ async function listUsers() {
     return {
       id: row.id,
       username: row.username,
+      email: row.email || null,
       role: row.role,
       status: row.status || 'pending',
       createdAt: row.createdAt,
@@ -94,6 +109,10 @@ async function updateUserFields(id, patch) {
   if (patch.username != null) {
     fields.push('username = ?');
     vals.push(patch.username);
+  }
+  if (patch.email !== undefined) {
+    fields.push('email = ?');
+    vals.push(patch.email ? String(patch.email).trim().toLowerCase() : null);
   }
   if (patch.passwordHash != null) {
     fields.push('password_hash = ?');
@@ -138,7 +157,7 @@ async function setDirectoryAccess(userId, directoryIds) {
 }
 
 async function getAllowedAreaKeys(userId, role) {
-  if (role === 'viewer_area') {
+  if (role === 'viewer_area' || role === 'owner_setor') {
     const [rows] = await pool.query(
       `SELECT d.area_key AS areaKey FROM user_directory_access uda
         JOIN hub_directories d ON d.id = uda.hub_directory_id
@@ -152,6 +171,7 @@ async function getAllowedAreaKeys(userId, role) {
 
 module.exports = {
   findByUsername,
+  findByEmail,
   findPublicById,
   insertUser,
   setUserStatus,
@@ -161,4 +181,3 @@ module.exports = {
   setDirectoryAccess,
   getAllowedAreaKeys,
 };
-

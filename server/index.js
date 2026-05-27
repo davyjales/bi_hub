@@ -1,6 +1,7 @@
 const path = require('path');
 const express = require('express');
 const config = require('./config');
+const biStorage = require('./lib/biStorage');
 const { attachCookieMiddleware } = require('./lib/cookies');
 const { attachUser } = require('./middleware/resolveUser');
 
@@ -10,6 +11,7 @@ const apiDirectories = require('./routes/apiDirectories');
 const apiAdminUsers = require('./routes/apiAdminUsers');
 const apiUserApproval = require('./routes/apiUsersApproval');
 const apiBiFiles = require('./routes/apiBiFiles');
+const { isMailConfigured } = require('./lib/passwordReset');
 
 
 const ROOT = path.join(__dirname, '..');
@@ -40,6 +42,11 @@ const staticOpts = {
   },
 };
 
+if (biStorage.storageConfigured()) {
+  const previewsDir = path.join(config.bi.storageRoot, 'previews');
+  app.use('/storage-previews', express.static(previewsDir, staticOpts));
+}
+
 app.use(express.static(ROOT, staticOpts));
 
 app.use((_req, res) => res.status(404).type('txt').send('Não encontrado.'));
@@ -54,6 +61,12 @@ app.use((err, _req, res, _next) => {
 });
 
 app.listen(config.port, () => {
-
   console.log(`[bi-hub] A servir hub em http://localhost:${config.port}`);
+  if (isMailConfigured()) {
+    console.log('[bi-hub] Recuperação de palavra-passe por e-mail: activa (SMTP configurado).');
+  } else {
+    console.warn(
+      '[bi-hub] Recuperação por e-mail inactiva — defina SMTP_HOST e SMTP_FROM no .env (ver .env.example).',
+    );
+  }
 });

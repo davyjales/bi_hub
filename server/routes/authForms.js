@@ -1,11 +1,13 @@
 const express = require('express');
 const usersModel = require('../models/users');
-const { verifyPassword } = require('../lib/password');
+const { verifyPassword, hashPassword } = require('../lib/password');
 const { signToken } = require('../lib/token');
 const { setTokenCookie, clearTokenCookie } = require('../lib/cookies');
+const { normalizeEmail, isValidEmail } = require('../lib/emailValidate');
+const { requestPasswordReset } = require('../lib/passwordReset');
 
 const USERNAME_RE = /^[a-zA-Z0-9._-]{3,64}$/;
-const ROUTE_ROLES = new Set(['viewer_all', 'viewer_area']);
+const ROUTE_ROLES = new Set(['viewer_all', 'viewer_area', 'owner_setor']);
 
 function parseDirectoryIds(raw) {
   const arr = Array.isArray(raw) ? raw : raw != null ? [raw] : [];
@@ -37,6 +39,12 @@ router.post('/login', async (req, res, next) => {
     const password = String(req.body.password || '');
     const u = await usersModel.findByUsername(username);
     if (!u) return redirectAuth(res, `err=${encodeURIComponent('Credenciais inválidas.')}`);
+    if (u.status !== 'approved') {
+      return redirectAuth(
+        res,
+        `err=${encodeURIComponent('Conta pendente de aprovação ou inactiva. Contacte o administrador.')}`,
+      );
+    }
     const ok = await verifyPassword(password, u.passwordHash);
     if (!ok) return redirectAuth(res, `err=${encodeURIComponent('Credenciais inválidas.')}`);
 
@@ -48,15 +56,32 @@ router.post('/login', async (req, res, next) => {
   }
 });
 
+router.post('/forgot-password', async (req, res, next) => {
+  try {
+    const tabForgot = 'tab=forgot';
+    const result = await requestPasswordReset(req.body.email);
+
+    if (!result.ok) {
+      return redirectAuth(res, `err=${encodeURIComponent(result.error)}&${tabForgot}`);
+    }
+
+    return redirectAuth(res, `info=${encodeURIComponent(result.message)}&${tabForgot}`);
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.post('/register', async (req, res, next) => {
   try {
     const username = String(req.body.username || '').trim();
+    const email = normalizeEmail(req.body.email);
     const password = String(req.body.password || '');
     const role = String(req.body.role || '').trim();
 
     const err = [];
 
     if (!USERNAME_RE.test(username)) err.push('Utilizador: 3–64 caracteres (letras, números, . _ -).');
+    if (!isValidEmail(email)) err.push('Indique um e-mail válido.');
     if (password.length < 8) err.push('A palavra-passe deve ter pelo menos 8 caracteres.');
     if (!ROUTE_ROLES.has(role)) err.push('Nível de acesso inválido.');
 
@@ -66,40 +91,32 @@ router.post('/register', async (req, res, next) => {
     if (role === 'viewer_area') {
       if (!directoryIds.length) err.push('Selecione pelo menos um diretório.');
       dirIdsValidated = await idsExist(directoryIds);
-      if (role === 'viewer_area' && directoryIds.length && dirIdsValidated.length !== directoryIds.length) {
+      if (directoryIds.length && dirIdsValidated.length !== directoryIds.length) {
         err.push('Diretório inválido ou desatualizado.');
       }
     }
 
     const existing = await usersModel.findByUsername(username);
-
     if (existing) err.push('Este nome de utilizador já está em uso.');
 
+    const emailClash = await usersModel.findByEmail(email);
+    if (emailClash) err.push('Este e-mail já está registado.');
+
     if (err.length) {
-      return redirectAuth(res, [
-        `err=${encodeURIComponent(err.join(' '))}`,
-        'tab=register',
-      ].join('&'));
+      return redirectAuth(res, [`err=${encodeURIComponent(err.join(' '))}`, 'tab=register'].join('&'));
     }
 
-    const { hashPassword } = require('../lib/password');
     const hash = await hashPassword(password);
-
-    // Para perfis solicitados (viewer_*), o acesso só é liberado após aprovação do admin.
     const status = 'pending';
-    const newId = await usersModel.insertUser(username, hash, role, status);
+    const newId = await usersModel.insertUser(username, hash, role, status, email);
 
     if (role === 'viewer_area') await usersModel.setDirectoryAccess(newId, dirIdsValidated);
 
-    // Não criar sessão/token ainda.
     res.redirect(
       302,
       '/auth.html?err=' +
         encodeURIComponent('Pedido de acesso enviado. Aguarde a aprovação do registro por um administrador.'),
     );
-
-
-
   } catch (e) {
     next(e);
   }

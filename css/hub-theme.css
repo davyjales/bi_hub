@@ -48,11 +48,11 @@ body {
 }
 
 .hub-header-row {
-  height: 4rem;
-  min-height: 4rem;
   border-color: var(--panel-border);
   background: var(--panel-bg);
+  min-height: 72px;
 }
+
 
 .hub-brand-bar {
   height: 4rem;
@@ -187,15 +187,183 @@ html.dark .hub-icon-blue { color: var(--v-blue); }
   filter: brightness(1.06) contrast(1.04);
 }
 
-#mpl-sub-aside {
-  display: none;
-  flex-direction: column;
-  min-height: 0;
-  height: 100%;
+.hub-main-nav {
+  flex-wrap: wrap;
+  font-size: 0.9375rem;
+  line-height: 1.35;
 }
 
-#mpl-sub-aside.is-open {
+@media (min-width: 640px) {
+  .hub-main-nav {
+    font-size: 1rem;
+  }
+}
+
+.hub-nav-tab {
+  border-radius: 9999px;
+  padding: 0.6rem 1.15rem;
+  min-height: 2.5rem;
+  font-size: inherit;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+}
+
+@media (min-width: 640px) {
+  .hub-nav-tab {
+    padding: 0.65rem 1.35rem;
+    min-height: 2.75rem;
+  }
+}
+
+.hub-nav-tab:hover {
+  background: color-mix(in srgb, var(--v-blue) 8%, var(--panel-bg));
+  color: var(--v-blue-deep);
+}
+
+html.dark .hub-nav-tab:hover {
+  color: var(--v-blue);
+}
+
+.hub-nav-tab.is-active {
+  background: var(--v-orange-muted);
+  color: var(--v-orange);
+  border-color: var(--v-orange);
+}
+
+.hub-view-menu {
+  min-width: 22rem;
+  width: min(34rem, calc(100vw - 2rem));
+  max-width: 34rem;
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+}
+
+.hub-view-menu .hub-tree-area-btn,
+.hub-view-menu > #view-area-tree > button[data-area] {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  text-align: left;
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
   display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-primary);
+  transition: background 0.16s ease, color 0.16s ease;
+}
+
+.hub-view-menu .hub-tree-area-btn .hub-view-area-label,
+.hub-view-menu > #view-area-tree > button[data-area] .hub-view-area-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.hub-view-menu .hub-tree-area-btn:hover,
+.hub-view-menu > #view-area-tree > button[data-area]:hover {
+  background: color-mix(in srgb, var(--v-blue) 8%, var(--panel-bg));
+  color: var(--v-blue-deep);
+}
+
+html.dark .hub-view-menu .hub-tree-area-btn:hover,
+html.dark .hub-view-menu > #view-area-tree > button[data-area]:hover {
+  color: var(--v-blue);
+}
+
+.hub-view-menu .hub-tree-area-btn.is-active,
+.hub-view-menu > #view-area-tree > button[data-area].is-active {
+  background: var(--v-orange-muted);
+  color: var(--v-orange);
+}
+
+.hub-tree-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 2.125rem;
+  flex-shrink: 0;
+  border-radius: 0.5rem;
+  color: var(--text-muted);
+  transition: background 0.16s ease, color 0.16s ease;
+}
+
+.hub-tree-toggle:hover {
+  background: color-mix(in srgb, var(--v-blue) 10%, var(--panel-bg));
+  color: var(--v-blue-deep);
+}
+
+html.dark .hub-tree-toggle:hover {
+  color: var(--v-blue);
+}
+
+.hub-tree-spacer {
+  display: inline-block;
+  width: 1.5rem;
+  flex-shrink: 0;
+}
+
+.hub-tree-chevron {
+  font-size: 0.625rem;
+  transition: transform 0.18s ease;
+}
+
+.hub-tree-branch.is-expanded > .hub-tree-row .hub-tree-chevron,
+.hub-tree-chevron.is-open {
+  transform: rotate(90deg);
+}
+
+.hub-tree-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.hub-tree-children {
+  margin-top: 0.125rem;
+  padding-left: 0.35rem;
+  border-left: 1px solid var(--panel-border);
+  margin-left: 0.65rem;
+}
+
+.dir-tree-pick {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  border-radius: 0.75rem;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  transition: background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.dir-tree-pick:hover {
+  background: color-mix(in srgb, var(--v-blue) 8%, var(--panel-bg));
+}
+
+.dir-tree-item.dir-parent-selected > .dir-tree-row {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--v-orange) 55%, transparent);
+  border-radius: 0.75rem;
+}
+
+.dir-tree-item.dir-parent-selected .dir-tree-pick {
+  background: var(--v-orange-muted);
+  color: var(--v-orange);
 }
 
 /* Formulários (login / registo / admin) */
