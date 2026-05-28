@@ -191,6 +191,48 @@ router.patch(
   },
 );
 
+router.post('/move', requireAuth, async (req, res, next) => {
+  try {
+    if (!biStorage.storageConfigured()) {
+      return res.status(503).json({ ok: false, error: 'BI_STORAGE_ROOT não configurado no servidor.' });
+    }
+
+    const relativePath = String(req.body?.relativePath || '').trim();
+    const targetAreaKey = String(req.body?.targetAreaKey || '').trim();
+
+    if (!relativePath) return res.status(400).json({ ok: false, error: 'relativePath obrigatório.' });
+    if (!targetAreaKey) return res.status(400).json({ ok: false, error: 'targetAreaKey obrigatório.' });
+
+    const sourceAreaKey = relativePathToAreaKey(relativePath);
+    if (!sourceAreaKey) return res.status(400).json({ ok: false, error: 'Caminho inválido.' });
+
+    await assertCanManageArea(req.authUser, sourceAreaKey);
+    await assertCanManageArea(req.authUser, targetAreaKey);
+
+    const result = await biStorage.movePbixToArea(relativePath, targetAreaKey);
+
+    if (result.moved) {
+      await biAudit.insertEntry({
+        userId: req.authUser.id,
+        username: req.authUser.username,
+        action: 'move',
+        areaKey: result.areaKey,
+        oldAreaKey: result.oldAreaKey,
+        fileName: result.fileName,
+        relativePath: result.relativePath,
+      });
+    }
+
+    res.json({
+      ok: true,
+      ...result,
+      preview: biStorage.previewToPublicUrl(await biStorage.resolvePreviewRelativePath(result.relativePath)),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.delete('/file', requireAuth, async (req, res, next) => {
   try {
     if (!biStorage.storageConfigured()) {

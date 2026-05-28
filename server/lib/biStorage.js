@@ -263,6 +263,51 @@ async function saveUpload(areaKey, fileName, buffer) {
   return { fileName: safeName, relativePath: relFile };
 }
 
+async function movePbixToArea(relativePath, targetAreaKey) {
+  const rel = String(relativePath || '').replace(/\\/g, '/').replace(/^\/+/, '');
+  const oldAreaKey = relativePathToAreaKey(rel);
+  if (!oldAreaKey) {
+    const err = new Error('Caminho inválido.');
+    err.statusCode = 400;
+    throw err;
+  }
+  const fileName = path.posix.basename(rel);
+  const { relative: targetDir } = areaDirFull(targetAreaKey);
+  const newRel = path.posix.join(targetDir, fileName).replace(/\\/g, '/');
+
+  if (newRel === rel) {
+    return {
+      moved: false,
+      oldAreaKey,
+      areaKey: oldAreaKey,
+      fileName,
+      oldRelativePath: rel,
+      relativePath: rel,
+    };
+  }
+
+  const { full: destFull } = resolveUnderRoot(newRel);
+  const destStat = await tryStat(destFull);
+  if (destStat?.isFile()) {
+    const err = new Error('Já existe um relatório com este nome no destino.');
+    err.statusCode = 409;
+    throw err;
+  }
+
+  await renamePbixRelativePath(rel, newRel);
+  await movePreviewForPbix(rel, newRel);
+
+  const areaKey = relativePathToAreaKey(newRel);
+  return {
+    moved: true,
+    oldAreaKey,
+    areaKey,
+    fileName,
+    oldRelativePath: rel,
+    relativePath: newRel,
+  };
+}
+
 async function deleteFile(relativePath) {
   const rel = String(relativePath || '').replace(/\\/g, '/').replace(/^\/+/, '');
   const { full } = resolveUnderRoot(rel);
@@ -298,6 +343,7 @@ module.exports = {
   listReportsForAreaKeys,
   saveUpload,
   renamePbixRelativePath,
+  movePbixToArea,
   deleteFile,
   resolvePreviewRelativePath,
   savePreviewForPbix,

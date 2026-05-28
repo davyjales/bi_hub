@@ -1,10 +1,10 @@
 const { pool } = require('../dbPool');
 
-async function insertEntry({ userId, username, action, areaKey, fileName, relativePath }) {
+async function insertEntry({ userId, username, action, areaKey, fileName, relativePath, oldAreaKey = null }) {
   const [r] = await pool.query(
-    `INSERT INTO bi_file_audit (user_id, username, action, area_key, file_name, relative_path)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [userId, username, action, areaKey, fileName, relativePath],
+    `INSERT INTO bi_file_audit (user_id, username, action, area_key, old_area_key, file_name, relative_path)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [userId, username, action, areaKey, oldAreaKey || null, fileName, relativePath],
   );
   return r.insertId;
 }
@@ -42,7 +42,8 @@ async function listEntries({ limit = 100, userId = null, areaKeys = null } = {})
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
   const [rows] = await pool.query(
     `SELECT id, user_id AS userId, username, action, area_key AS areaKey,
-            file_name AS fileName, relative_path AS relativePath, created_at AS createdAt
+            old_area_key AS oldAreaKey, file_name AS fileName, relative_path AS relativePath,
+            created_at AS createdAt
        FROM bi_file_audit
        ${where}
        ORDER BY created_at DESC

@@ -88,7 +88,7 @@ router.post('/register', async (req, res, next) => {
     const directoryIds = parseDirectoryIds(req.body.directory_ids);
     let dirIdsValidated = [];
 
-    if (role === 'viewer_area') {
+    if (role === 'viewer_area' || role === 'owner_setor') {
       if (!directoryIds.length) err.push('Selecione pelo menos um diretório.');
       dirIdsValidated = await idsExist(directoryIds);
       if (directoryIds.length && dirIdsValidated.length !== directoryIds.length) {
@@ -110,7 +110,9 @@ router.post('/register', async (req, res, next) => {
     const status = 'pending';
     const newId = await usersModel.insertUser(username, hash, role, status, email);
 
-    if (role === 'viewer_area') await usersModel.setDirectoryAccess(newId, dirIdsValidated);
+    if (role === 'viewer_area' || role === 'owner_setor') {
+      await usersModel.setDirectoryAccess(newId, dirIdsValidated);
+    }
 
     res.redirect(
       302,
