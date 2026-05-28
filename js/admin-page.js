@@ -70,17 +70,38 @@
     return data;
   }
 
-  function fillDirectorySelect(sel, selectedIds) {
+  function fillDirectoryChecklist(container, selectedIds, fieldName) {
     const want = selectedIds.map(Number).filter((n) => n > 0);
-    sel.innerHTML = directories
+    container.innerHTML = directories
       .map((d) => {
         const id = Number(d.id);
-        const selAttr = want.includes(id) ? ' selected' : '';
-        return '<option value="' + id + '"' + selAttr + '>' + escapeHtml(d.areaKey) + '</option>';
+        const checkedAttr = want.includes(id) ? ' checked' : '';
+        return (
+          '<label class="hub-checkbox-item">' +
+          '<input type="checkbox" name="' +
+          escapeHtml(fieldName) +
+          '" value="' +
+          id +
+          '"' +
+          checkedAttr +
+          '>' +
+          '<span>' +
+          escapeHtml(d.areaKey) +
+          '</span>' +
+          '</label>'
+        );
       })
       .join('');
-    if (!directories.length)
-      sel.innerHTML = '<option value="">' + escapeHtml('(Sem diretorios)') + '</option>';
+    if (!directories.length) {
+      container.innerHTML =
+        '<p class="text-xs text-[var(--text-muted)] px-2 py-1">' + escapeHtml('(Sem diretorios)') + '</p>';
+    }
+  }
+
+  function getCheckedDirectoryIds(containerId) {
+    return [...document.querySelectorAll('#' + containerId + ' input[type="checkbox"]:checked')]
+      .map((el) => Number(el.value))
+      .filter((n) => n > 0);
   }
 
   function toggleCreateDirs() {
@@ -230,7 +251,7 @@
       ? u.directoryIds.map(Number).filter((x) => x > 0)
       : [];
 
-    fillDirectorySelect(document.getElementById('edit-directories'), ids);
+    fillDirectoryChecklist(document.getElementById('edit-directories'), ids, 'edit-directory-ids');
 
     document.getElementById('edit-password').value = '';
 
@@ -267,7 +288,7 @@
     const dirs = await fetchJson('/api/directories');
     directories = dirs.directories || [];
 
-    fillDirectorySelect(document.getElementById('create-directories'), []);
+    fillDirectoryChecklist(document.getElementById('create-directories'), [], 'create-directory-ids');
     toggleCreateDirs();
 
     await reloadUsersTable();
@@ -288,9 +309,7 @@
       const password = document.getElementById('create-password').value;
       const role = [...document.querySelectorAll('input[name="create-role"]')].find((r) => r.checked)?.value;
 
-      const ids = [...document.getElementById('create-directories').selectedOptions]
-        .map((o) => Number(o.value))
-        .filter((n) => n > 0);
+      const ids = getCheckedDirectoryIds('create-directories');
 
       const payload = { username, email, password, role };
 
@@ -304,7 +323,7 @@
 
       document.getElementById('create-user-form').reset();
       toggleCreateDirs();
-      fillDirectorySelect(document.getElementById('create-directories'), []);
+      fillDirectoryChecklist(document.getElementById('create-directories'), [], 'create-directory-ids');
       await reloadUsersTable();
     });
 
@@ -317,9 +336,7 @@
       const password = document.getElementById('edit-password').value;
       const role = [...document.querySelectorAll('input[name="edit-role"]')].find((r) => r.checked)?.value;
 
-      const ids = [...document.getElementById('edit-directories').selectedOptions]
-        .map((o) => Number(o.value))
-        .filter((n) => n > 0);
+      const ids = getCheckedDirectoryIds('edit-directories');
 
       const body = { username, email, role, directoryIds: ids };
       if (password.trim().length) body.password = password;

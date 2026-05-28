@@ -152,6 +152,53 @@ html.dark .hub-area-item:hover {
 
 .hub-preview-overlay {
   background: linear-gradient(to top, rgba(0, 0, 0, 0.72) 0%, transparent 55%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.hub-card:hover .hub-preview-overlay {
+  opacity: 1;
+}
+
+.hub-panels-root {
+  position: relative;
+}
+
+.hub-content-panel {
+  display: none;
+  width: 100%;
+}
+
+.hub-content-panel.is-active {
+  display: block;
+  position: relative;
+  z-index: 1;
+}
+
+.hub-card-manage-actions {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 30;
+  display: flex;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.hub-card:hover .hub-card-manage-actions,
+.hub-card:focus-within .hub-card-manage-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Utilizadores com permissão de gestão: botões sempre visíveis (evita falhas de hover/overlay) */
+html.hub-can-manage-bi .hub-card .hub-card-manage-actions {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .hub-cta-btn {
@@ -239,6 +286,10 @@ html.dark .hub-nav-tab:hover {
   background: var(--v-orange-muted);
   color: var(--v-orange);
   border-color: var(--v-orange);
+}
+
+.hub-manage-page {
+  box-shadow: var(--card-shadow);
 }
 
 .hub-view-menu {
@@ -409,6 +460,30 @@ html.dark .hub-tree-toggle:hover {
 
 .hub-select[multiple] {
   min-height: 8rem;
+}
+
+.hub-checkbox-list {
+  max-height: 12rem;
+  overflow-y: auto;
+  border: 1px solid var(--panel-border);
+  border-radius: 0.75rem;
+  background: var(--input-bg);
+  padding: 0.35rem;
+}
+
+.hub-checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.4rem 0.45rem;
+  border-radius: 0.55rem;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+}
+
+.hub-checkbox-item:hover {
+  background: color-mix(in srgb, var(--v-blue) 8%, var(--input-bg));
 }
 
 .hub-btn-primary {

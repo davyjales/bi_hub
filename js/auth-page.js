@@ -78,28 +78,34 @@ function switchTab(which) {
 
 function toggleDirBlock() {
   const area = document.getElementById('reg-role-area');
-  const vis = !!(area && area.checked);
+  const setor = document.getElementById('reg-role-setor');
+  const vis = !!((area && area.checked) || (setor && setor.checked));
   const block = document.getElementById('register-dir-block');
-  const sel = document.getElementById('register-directory-select');
+  const list = document.getElementById('register-directory-select');
   if (block) block.classList.toggle('hidden', !vis);
-  if (sel && !vis) {
-    [...sel.selectedOptions].forEach((opt) => {
-      opt.selected = false;
+  if (list && !vis) {
+    list.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+      input.checked = false;
     });
   }
 }
 
-async function loadDirectoriesIntoSelect(selectEl) {
+async function loadDirectoriesIntoChecklist(containerEl) {
   const r = await fetch('/api/directories', { cache: 'no-store' });
   if (!r.ok) return;
   const data = await r.json();
   const opts =
     data.directories && data.directories.length
       ? data.directories
-          .map((d) => `<option value="${String(d.id)}">${escapeHtml(d.areaKey)}</option>`)
+          .map(
+            (d) =>
+              `<label class="hub-checkbox-item"><input type="checkbox" name="directory_ids" value="${String(
+                d.id,
+              )}"><span>${escapeHtml(d.areaKey)}</span></label>`,
+          )
           .join('')
       : '';
-  selectEl.innerHTML = opts || '<option value="">(Sem diretórios — rode o seed)</option>';
+  containerEl.innerHTML = opts || '<p class="text-xs text-[var(--text-muted)] px-2 py-1">(Sem diretórios — rode o seed)</p>';
 }
 
 function escapeHtml(str) {
@@ -165,7 +171,7 @@ async function initAuthPage() {
   });
 
   const sel = document.getElementById('register-directory-select');
-  if (sel) await loadDirectoriesIntoSelect(sel);
+  if (sel) await loadDirectoriesIntoChecklist(sel);
 
   try {
     const r = await fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' });

@@ -89,8 +89,9 @@
           <label class="flex items-start gap-2 text-sm"><input type="radio" name="create-role" value="viewer_area"><span><strong>Viewer</strong> — apenas visualiza BI's, podendo acessar um ou mais diretórios.</span></label>
           
           <div id="create-dirs" class="space-y-1 hidden">
-            <label class="text-xs hub-section-label font-semibold uppercase" for="create-directories">Diretórios</label>
-            <select id="create-directories" class="hub-input hub-select" multiple size="7"></select>
+            <label class="text-xs hub-section-label font-semibold uppercase">Diretórios</label>
+            <div id="create-directories" class="hub-checkbox-list"></div>
+            <p class="text-[11px] hub-section-label">Marque um ou mais diretórios.</p>
           </div>
         </div>
         <div class="md:col-span-2">
@@ -137,8 +138,9 @@
           <label class="flex gap-2 text-sm"><input type="radio" name="edit-role" value="owner_setor"><span>Owner Setor</span></label>
 
           <div id="edit-dirs" class="space-y-1 hidden">
-            <label class="text-xs hub-section-label font-semibold uppercase" for="edit-directories">Seleccionar diretórios</label>
-            <select id="edit-directories" class="hub-input hub-select" multiple size="7"></select>
+            <label class="text-xs hub-section-label font-semibold uppercase">Selecionar diretórios</label>
+            <div id="edit-directories" class="hub-checkbox-list"></div>
+            <p class="text-[11px] hub-section-label">Marque um ou mais diretórios.</p>
           </div>
         </div>
       </div>

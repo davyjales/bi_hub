@@ -113,7 +113,7 @@ const REPORTS_FALLBACK = [
 /** @type {{ id:number; areaKey:string }[]} */
 let directoryCatalog = [];
 
-/** Pasta pai selecionada no modal de gestão (`null` = raiz). */
+/** Pasta pai selecionada na gestão de diretórios (`null` = raiz). */
 let dirCreateParentKey = null;
 
 /** Evita que respostas antigas do histórico de diretórios sobrescrevam uma mais recente. */
@@ -251,7 +251,7 @@ function mapApiReport(r, id) {
     area: r.area,
     updated: r.updated || '—',
     file: r.file,
-    relativePath: r.relativePath,
+    relativePath: r.relativePath || r.relative_path || '',
     preview: r.preview || '',
   };
 }
@@ -290,7 +290,7 @@ async function loadReportsFromApi() {
 
 async function loadManageAreas() {
   manageAreaKeys = [];
-  if (!hubSession?.canManageBi) return;
+  if (!userCanManageBi()) return;
   try {
     const data = await fetchJson('/api/bi-files/manage-areas');
     if (!data.canManage) return;
@@ -309,9 +309,20 @@ async function loadManageAreas() {
   }
 }
 
+function userCanManageBi() {
+  if (hubSession?.canManageBi) return true;
+  const role = hubSession?.user?.role;
+  return role === 'admin' || role === 'viewer_all' || role === 'owner_setor';
+}
+
+function reportManageKey(r) {
+  return r?.relativePath ? String(r.relativePath) : '';
+}
+
 function canDeleteReport(r) {
-  if (!hubSession?.canManageBi || !r.relativePath) return false;
-  if (hubSession.user.role === 'admin' || hubSession.user.role === 'viewer_all') return true;
+  if (!userCanManageBi() || !reportManageKey(r)) return false;
+  const role = hubSession?.user?.role;
+  if (role === 'admin' || role === 'viewer_all') return true;
   const areaKey = r.area;
   return manageAreaKeys.some((allowedKey) => {
     if (!allowedKey || !areaKey) return false;
@@ -374,9 +385,12 @@ function applyHeaderProfile() {
   if (elAvatar) elAvatar.textContent = initialsFrom(nm);
   if (adminLink) adminLink.classList.toggle('hidden', hubSession?.user?.role !== 'admin');
   if (dirTab) dirTab.classList.toggle('hidden', hubSession?.user?.role !== 'admin');
-  if (pbiTab) pbiTab.classList.toggle('hidden', !hubSession?.canManageBi);
-  const manageBtn = document.getElementById('bi-manage-open');
-  if (manageBtn) manageBtn.classList.toggle('hidden', !hubSession?.canManageBi);
+  if (pbiTab) pbiTab.classList.toggle('hidden', !userCanManageBi());
+  document.documentElement.classList.toggle('hub-can-manage-bi', userCanManageBi());
+}
+
+function refreshHomeCards() {
+  filterByArea(selectedArea);
 }
 
 function reportsForMplRoot() {
@@ -566,6 +580,7 @@ function renderViewMenu() {
       const v = btn.getAttribute('data-area');
       filterByArea(v === '__all__' ? null : v);
       viewMenu.classList.add('hidden');
+      showHubPanel('home');
       setActiveTab('view');
     });
   });
@@ -584,19 +599,21 @@ function renderCards(filteredReports) {
   grid.innerHTML = filteredReports
     .map((r) => {
       const previewSrc = r.preview ? r.preview : PREVIEW_PLACEHOLDER;
+      const manageKey = reportManageKey(r);
       const canManageThis = canDeleteReport(r);
       const manageBtns = canManageThis
-        ? `<div class="absolute top-2 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition">
-            <button type="button" class="bi-edit-btn rounded-lg bg-slate-900/80 px-2 py-1 text-[10px] font-semibold text-white hover:bg-slate-900" data-edit="${encodeURIComponent(r.relativePath)}" title="Editar relatório">Editar</button>
-            <button type="button" class="bi-delete-btn rounded-lg bg-red-600/90 px-2 py-1 text-[10px] font-semibold text-white hover:bg-red-600" data-delete="${encodeURIComponent(r.relativePath)}" title="Excluir relatório">Excluir</button>
+        ? `<div class="hub-card-manage-actions">
+            <button type="button" class="bi-edit-btn rounded-lg bg-slate-900/80 px-2 py-1 text-[10px] font-semibold text-white hover:bg-slate-900" data-edit="${encodeURIComponent(manageKey)}" title="Editar relatório">Editar</button>
+            <button type="button" class="bi-move-btn rounded-lg bg-blue-900/80 px-2 py-1 text-[10px] font-semibold text-white hover:bg-blue-900"data-move="${encodeURIComponent(manageKey)}" title="Mover para outro diretório">Mover</button>
+            <button type="button" class="bi-delete-btn rounded-lg bg-red-600/90 px-2 py-1 text-[10px] font-semibold text-white hover:bg-red-600" data-delete="${encodeURIComponent(manageKey)}" title="Excluir relatório">Excluir</button>
           </div>`
         : '';
       return `
-        <article class="hub-card rounded-2xl overflow-hidden cursor-pointer group relative" data-open="${encodeURIComponent(r.file)}">
+        <article class="hub-card rounded-2xl overflow-hidden cursor-pointer relative" data-open="${encodeURIComponent(r.file)}">
           ${manageBtns}
           <div class="h-44 relative overflow-hidden bg-black">
             <img src="${previewSrc}" alt="" class="preview-img js-preview-thumb w-full h-full object-cover opacity-95" loading="lazy">
-            <div class="hub-preview-overlay absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-3">
+            <div class="hub-preview-overlay absolute inset-0 flex items-end p-3">
               <span class="hub-cta-btn text-xs font-semibold px-4 py-2 rounded-xl w-full flex items-center justify-center gap-2">
                 <i class="fa-solid fa-arrow-up-right-from-square hub-icon-blue"></i>
                 Abrir no Power BI Desktop
@@ -616,6 +633,7 @@ function renderCards(filteredReports) {
     el.addEventListener('click', (ev) => {
       if (ev.target.closest('.bi-delete-btn')) return;
       if (ev.target.closest('.bi-edit-btn')) return;
+      if (ev.target.closest('.bi-move-btn')) return;
       openReport(decodeURIComponent(el.getAttribute('data-open')));
     });
   });
@@ -631,6 +649,14 @@ function renderCards(filteredReports) {
       const rel = decodeURIComponent(btn.getAttribute('data-edit'));
       const r = reportsForDisplay().find((x) => x.relativePath === rel);
       if (r) openEditModal(r);
+    });
+  });
+  grid.querySelectorAll('.bi-move-btn').forEach((btn) => {
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const rel = decodeURIComponent(btn.getAttribute('data-move'));
+      const r = reportsForDisplay().find((x) => x.relativePath === rel);
+      if (r) openMoveModal(r);
     });
   });
   grid.querySelectorAll('img.js-preview-thumb').forEach((img) => {
@@ -711,18 +737,35 @@ function setUploadMsg(text, isError) {
   el.classList.toggle('text-emerald-600', !isError);
 }
 
-function fillManageAreaSelect() {
-  const sel = document.getElementById('bi-upload-area');
-  if (!sel) return;
+function manageableAreaKeysList() {
   const allKeys = (directoryCatalog || []).map((d) => d.areaKey).filter(Boolean);
-  const keys = manageAreaKeys.length
-    ? manageAreaKeys
+  return manageAreaKeys.length
+    ? manageAreaKeys.slice()
     : hubSession?.access?.type === 'scoped'
       ? hubSession.access.allowedAreaKeys || []
       : allKeys;
+}
+
+function fillManageAreaSelect() {
+  const sel = document.getElementById('bi-upload-area');
+  if (!sel) return;
+  const keys = manageableAreaKeysList();
   sel.innerHTML = (keys || [])
-    .map((k) => `<option value="${k.replace(/"/g, '&quot;')}">${k}</option>`)
+    .map((k) => `<option value="${escapeAttr(k)}">${escapeHtml(k)}</option>`)
     .join('');
+}
+
+function fillMoveAreaSelect(currentAreaKey) {
+  const sel = document.getElementById('bi-move-area');
+  if (!sel) return;
+  const keys = manageableAreaKeysList().filter((k) => k && k !== currentAreaKey);
+  if (!keys.length) {
+    sel.innerHTML = '<option value="">(Sem outros diretórios disponíveis)</option>';
+    sel.disabled = true;
+    return;
+  }
+  sel.disabled = false;
+  sel.innerHTML = keys.map((k) => `<option value="${escapeAttr(k)}">${escapeHtml(k)}</option>`).join('');
 }
 
 async function loadDirHistory() {
@@ -767,7 +810,7 @@ async function loadDirHistory() {
 async function loadBiHistory() {
   const box = document.getElementById('bi-history-list');
   if (!box) return;
-  if (!hubSession?.canManageBi) {
+  if (!userCanManageBi()) {
     box.innerHTML = '<p class="text-sm hub-section-label">Sem permissão para ver o histórico.</p>';
     return;
   }
@@ -781,12 +824,24 @@ async function loadBiHistory() {
     }
     box.innerHTML = entries
       .map((e) => {
-        const action = e.action === 'upload' ? 'Inseriu' : e.action === 'edit' ? 'Editou' : 'Excluiu';
+        const action =
+          e.action === 'upload'
+            ? 'Inseriu'
+            : e.action === 'edit'
+              ? 'Editou'
+              : e.action === 'move'
+                ? 'Moveu'
+                : 'Excluiu';
         const when = e.createdAt ? new Date(e.createdAt).toLocaleString('pt-BR') : '';
+        const areaDetail =
+          e.action === 'move' && e.oldAreaKey
+            ? `<span class="font-mono text-xs block mt-1 leading-snug">${escapeHtml(e.oldAreaKey)} → ${escapeHtml(e.areaKey)}</span>`
+            : `<span class="block text-xs hub-section-label">${escapeHtml(e.areaKey)}</span>`;
         return `<div class="rounded-lg border border-[var(--panel-border)] px-3 py-2.5 space-y-1">
           <span class="text-sm font-semibold text-[var(--text-primary)]">${action}</span>
           <span class="font-mono text-xs block leading-snug">${escapeHtml(e.fileName)}</span>
-          <span class="block text-xs hub-section-label">${escapeHtml(e.username)} · ${escapeHtml(e.areaKey)} · ${when}</span>
+          ${areaDetail}
+          <span class="block text-xs hub-section-label">${escapeHtml(e.username)} · ${when}</span>
         </div>`;
       })
       .join('');
@@ -795,17 +850,25 @@ async function loadBiHistory() {
   }
 }
 
-function openManageModal() {
-  fillManageAreaSelect();
-  setUploadMsg('');
-  document.getElementById('bi-upload-file').value = '';
-  document.getElementById('bi-upload-preview').value = '';
-  document.getElementById('bi-manage-modal')?.classList.remove('hidden');
-  loadBiHistory();
+function showHubPanel(panelId) {
+  document.querySelectorAll('.hub-content-panel').forEach((el) => {
+    const name = el.id.replace(/^hub-panel-/, '');
+    el.classList.toggle('is-active', name === panelId);
+  });
+  if (panelId === 'home') refreshHomeCards();
 }
 
-function closeManageModal() {
-  document.getElementById('bi-manage-modal')?.classList.add('hidden');
+function openGestaoPbiPanel() {
+  if (!userCanManageBi()) return;
+  fillManageAreaSelect();
+  setUploadMsg('');
+  const fileInput = document.getElementById('bi-upload-file');
+  const previewInput = document.getElementById('bi-upload-preview');
+  if (fileInput) fileInput.value = '';
+  if (previewInput) previewInput.value = '';
+  showHubPanel('gestao-pbi');
+  setActiveTab('gestao-pbi');
+  loadBiHistory();
 }
 
 async function refreshReportsView() {
@@ -828,12 +891,6 @@ async function deleteReport(relativePath) {
     alert(err.message || 'Não foi possível excluir.');
   }
 }
-
-document.getElementById('bi-manage-open')?.addEventListener('click', openManageModal);
-document.getElementById('bi-manage-close')?.addEventListener('click', closeManageModal);
-document.getElementById('bi-manage-modal')?.addEventListener('click', (e) => {
-  if (e.target.id === 'bi-manage-modal') closeManageModal();
-});
 
 document.getElementById('bi-upload-form')?.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -904,6 +961,69 @@ document.getElementById('bi-edit-close')?.addEventListener('click', closeEditMod
 document.getElementById('bi-edit-cancel')?.addEventListener('click', closeEditModal);
 document.getElementById('bi-edit-modal')?.addEventListener('click', (e) => {
   if (e.target.id === 'bi-edit-modal') closeEditModal();
+});
+
+function setMoveMsg(text, isError) {
+  const el = document.getElementById('bi-move-msg');
+  if (!el) return;
+  if (!text) {
+    el.classList.add('hidden');
+    return;
+  }
+  el.textContent = text;
+  el.classList.remove('hidden');
+  el.classList.toggle('text-red-500', !!isError);
+  el.classList.toggle('text-emerald-600', !isError);
+}
+
+function openMoveModal(report) {
+  if (!report?.relativePath) return;
+  document.getElementById('bi-move-relative-path').value = report.relativePath;
+  const nameEl = document.getElementById('bi-move-report-name');
+  const areaEl = document.getElementById('bi-move-current-area');
+  if (nameEl) nameEl.textContent = report.title || report.fileName || 'Relatório';
+  if (areaEl) areaEl.textContent = `Diretório atual: ${report.area || '—'}`;
+  fillMoveAreaSelect(report.area || '');
+  setMoveMsg('');
+  document.getElementById('bi-move-modal')?.classList.remove('hidden');
+}
+
+function closeMoveModal() {
+  document.getElementById('bi-move-modal')?.classList.add('hidden');
+}
+
+document.getElementById('bi-move-close')?.addEventListener('click', closeMoveModal);
+document.getElementById('bi-move-cancel')?.addEventListener('click', closeMoveModal);
+document.getElementById('bi-move-modal')?.addEventListener('click', (e) => {
+  if (e.target.id === 'bi-move-modal') closeMoveModal();
+});
+
+document.getElementById('bi-move-save')?.addEventListener('click', async () => {
+  const relativePath = document.getElementById('bi-move-relative-path')?.value;
+  const targetAreaKey = document.getElementById('bi-move-area')?.value;
+  const sel = document.getElementById('bi-move-area');
+  if (!relativePath || !targetAreaKey || sel?.disabled) {
+    setMoveMsg('Selecione um diretório de destino.', true);
+    return;
+  }
+  setMoveMsg('A mover…', false);
+  try {
+    const data = await fetchJson('/api/bi-files/move', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ relativePath, targetAreaKey }),
+    });
+    if (!data.moved) {
+      setMoveMsg('O relatório já está neste diretório.', true);
+      return;
+    }
+    setMoveMsg('Relatório movido com sucesso.', false);
+    closeMoveModal();
+    await refreshReportsView();
+    loadBiHistory();
+  } catch (err) {
+    setMoveMsg(err.message || 'Erro ao mover.', true);
+  }
 });
 
 document.getElementById('bi-edit-save')?.addEventListener('click', async () => {
@@ -986,6 +1106,7 @@ function initNavInteractions() {
   if (tabHome) {
     tabHome.addEventListener('click', () => {
       selectedArea = null;
+      showHubPanel('home');
       setActiveTab('home');
       document.getElementById('area-title').textContent = allReportsTitleTerm();
       renderCards(reportsForDisplay());
@@ -1025,19 +1146,14 @@ function initNavInteractions() {
 
   if (tabGestaoPbi) {
     tabGestaoPbi.addEventListener('click', () => {
-      const manageBtn = document.getElementById('bi-manage-open');
-      if (manageBtn && !manageBtn.classList.contains('hidden')) {
-        manageBtn.click();
-        setActiveTab('gestao-pbi');
-      }
+      openGestaoPbiPanel();
     });
   }
 
   if (tabGestaoDir) {
     tabGestaoDir.addEventListener('click', () => {
       if (hubSession?.user?.role === 'admin') {
-        openDirectoryModal();
-        setActiveTab('gestao-diretorio');
+        openGestaoDiretorioPanel();
       }
     });
   }
@@ -1188,14 +1304,16 @@ function renderDirectoryList() {
   });
 }
 
-function openDirectoryModal() {
+function openGestaoDiretorioPanel() {
+  if (hubSession?.user?.role !== 'admin') return;
   setDirMsg('');
   dirCreateParentKey = null;
   const parentLabel = document.getElementById('dir-create-parent-label');
   if (parentLabel) parentLabel.textContent = formatDirParentLabel(null);
   const nameInput = document.getElementById('dir-create-name');
   if (nameInput) nameInput.value = '';
-  document.getElementById('dir-manage-modal')?.classList.remove('hidden');
+  showHubPanel('gestao-diretorio');
+  setActiveTab('gestao-diretorio');
   loadDirHistory();
   refreshDirectoryUi().catch((err) => {
     console.error('[bi-hub] refreshDirectoryUi:', err);
@@ -1207,15 +1325,6 @@ function openDirectoryModal() {
     loadDirHistory();
   });
 }
-
-function closeDirectoryModal() {
-  document.getElementById('dir-manage-modal')?.classList.add('hidden');
-}
-
-document.getElementById('dir-manage-close')?.addEventListener('click', closeDirectoryModal);
-document.getElementById('dir-manage-modal')?.addEventListener('click', (e) => {
-  if (e.target.id === 'dir-manage-modal') closeDirectoryModal();
-});
 
 document.getElementById('dir-create-parent-root')?.addEventListener('click', () => {
   setDirCreateParent(null);
@@ -1262,14 +1371,15 @@ document.getElementById('dir-create-form')?.addEventListener('submit', async (e)
     await loadReportsFromApi();
     await loadDirectoriesCatalog();
     applyHeaderProfile();
-    renderCards(reportsForDisplay());
+    showHubPanel('home');
     renderViewMenu();
     initNavInteractions();
     probeLauncher();
   } catch (err) {
     console.error('[bi-hub] bootstrap:', err);
     reports = REPORTS_FALLBACK.slice();
-    renderCards(reportsForDisplay());
+    applyHeaderProfile();
+    showHubPanel('home');
   }
 })();
 
