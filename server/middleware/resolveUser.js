@@ -25,7 +25,12 @@ async function attachUser(req, _res, next) {
       req.authUser = null;
       return next();
     }
-    req.authUser = { id: pub.id, username: pub.username, role: pub.role };
+    req.authUser = {
+      id: pub.id,
+      username: pub.username,
+      role: pub.role,
+      mustChangePassword: !!pub.mustChangePassword,
+    };
 
   } catch (_) {
     req.authUser = null;
@@ -45,4 +50,15 @@ function requireAdmin(req, res, next) {
   return next();
 }
 
-module.exports = { attachUser, requireAuth, requireAdmin };
+function requirePasswordChanged(req, res, next) {
+  if (req.authUser?.mustChangePassword) {
+    return res.status(403).json({
+      ok: false,
+      error: 'Deve definir uma nova palavra-passe antes de continuar.',
+      mustChangePassword: true,
+    });
+  }
+  return next();
+}
+
+module.exports = { attachUser, requireAuth, requireAdmin, requirePasswordChanged };

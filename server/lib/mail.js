@@ -10,7 +10,7 @@ function isMailConfigured() {
 function getTransporter() {
   if (!isMailConfigured()) return null;
   if (!transporter) {
-    transporter = nodemailer.createTransport({
+    const opts = {
       host: config.mail.host,
       port: config.mail.port,
       secure: config.mail.secure,
@@ -18,7 +18,11 @@ function getTransporter() {
         config.mail.user && config.mail.pass
           ? { user: config.mail.user, pass: config.mail.pass }
           : undefined,
-    });
+    };
+    if (config.mail.tlsInsecure) {
+      opts.tls = { rejectUnauthorized: false };
+    }
+    transporter = nodemailer.createTransport(opts);
   }
   return transporter;
 }
@@ -38,7 +42,7 @@ async function sendPasswordResetEmail({ to, username, password }) {
     `Olá ${username},\n\n` +
     `Foi gerada uma nova palavra-passe para a sua conta no ${appName}:\n\n` +
     `${password}\n\n` +
-    `Recomendamos alterá-la após entrar no sistema.\n` +
+    `Ao entrar no sistema, será pedido que defina uma nova palavra-passe antes de continuar.\n` +
     (loginUrl ? `\nEntrada: ${loginUrl}\n` : '\n') +
     `\n— ${appName}`;
 
@@ -46,7 +50,7 @@ async function sendPasswordResetEmail({ to, username, password }) {
     <p>Olá <strong>${escapeHtml(username)}</strong>,</p>
     <p>Foi gerada uma nova palavra-passe para a sua conta no <strong>${escapeHtml(appName)}</strong>:</p>
     <p style="font-family:monospace;font-size:16px;padding:12px;background:#f1f5f9;border-radius:8px;">${escapeHtml(password)}</p>
-    <p>Recomendamos alterá-la após entrar no sistema.</p>
+    <p>Ao entrar, defina uma nova palavra-passe na página de login antes de aceder ao hub.</p>
     ${loginUrl ? `<p><a href="${escapeHtml(loginUrl)}">Ir para a página de entrada</a></p>` : ''}
     <p style="color:#64748b;font-size:12px;">— ${escapeHtml(appName)}</p>`;
 

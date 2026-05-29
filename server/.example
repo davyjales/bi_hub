@@ -1,0 +1,32 @@
+# Copie para .env e preencha os valores.
+
+JWT_SECRET=altere-esta-chave-secreta
+DB_NAME=bi_hub
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=
+
+# Recuperação de palavra-passe (SMTP) — obrigatório para "Esqueci a palavra-passe"
+# Sem SMTP_HOST e SMTP_FROM a funcionalidade fica desactivada.
+#
+# Relay interno Visteon (recomendado na rede corporativa):
+SMTP_HOST=vistsmtp.visteon.com
+# Na rede interna a porta 587 pode responder 421; usar 25 com relay sem auth.
+SMTP_PORT=25
+SMTP_SECURE=false
+SMTP_TLS_INSECURE=true
+SMTP_FROM="Visteon BI Hub" <noreply@visteon.com>
+# SMTP_USER e SMTP_PASS só se o relay exigir autenticação no seu ambiente.
+# SMTP_USER=noreply@visteon.com
+# SMTP_PASS=sua-senha-smtp
+#
+# Alternativa Office 365 (requer conta/app password válidos no tenant):
+# SMTP_HOST=smtp.office365.com
+# SMTP_USER=seu-email@visteon.com
+# URL da página de login (opcional, link no e-mail)
+APP_LOGIN_URL=http://localhost:3000/auth.html
+MAIL_APP_NAME=Visteon BI Hub
+
+# Seed (opcional)
+# SEED_ADMIN_EMAIL=admin@empresa.com

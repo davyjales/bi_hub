@@ -2,7 +2,8 @@ const { pool } = require('../dbPool');
 
 async function findByUsername(username) {
   const [rows] = await pool.query(
-    `SELECT id, username, email, password_hash AS passwordHash, role, status
+    `SELECT id, username, email, password_hash AS passwordHash, role, status,
+            must_change_password AS mustChangePassword
        FROM users WHERE username = ? LIMIT 1`,
     [username],
   );
@@ -13,7 +14,8 @@ async function findByEmail(email) {
   const norm = String(email || '').trim().toLowerCase();
   if (!norm) return null;
   const [rows] = await pool.query(
-    `SELECT id, username, email, password_hash AS passwordHash, role, status
+    `SELECT id, username, email, password_hash AS passwordHash, role, status,
+            must_change_password AS mustChangePassword
        FROM users WHERE email = ? LIMIT 1`,
     [norm],
   );
@@ -22,7 +24,8 @@ async function findByEmail(email) {
 
 async function findPublicById(id) {
   const [rows] = await pool.query(
-    `SELECT id, username, email, role, status, created_at AS createdAt, updated_at AS updatedAt
+    `SELECT id, username, email, role, status, must_change_password AS mustChangePassword,
+            created_at AS createdAt, updated_at AS updatedAt
        FROM users WHERE id = ? LIMIT 1`,
     [id],
   );
@@ -117,6 +120,10 @@ async function updateUserFields(id, patch) {
   if (patch.passwordHash != null) {
     fields.push('password_hash = ?');
     vals.push(patch.passwordHash);
+  }
+  if (patch.mustChangePassword !== undefined) {
+    fields.push('must_change_password = ?');
+    vals.push(patch.mustChangePassword ? 1 : 0);
   }
   if (patch.role != null) {
     fields.push('role = ?');

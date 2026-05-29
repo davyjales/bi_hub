@@ -61,7 +61,7 @@ app.use((err, _req, res, _next) => {
 });
 
 app.listen(config.port, () => {
-  console.log(`[bi-hub] A servir hub em http://localhost:${config.port}`);
+  console.log(`[bi-hub] A servir hub em http://10.137.174.45:${config.port}`);
   if (isMailConfigured()) {
     console.log('[bi-hub] Recuperação de palavra-passe por e-mail: activa (SMTP configurado).');
   } else {

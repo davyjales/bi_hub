@@ -40,7 +40,10 @@ async function requestPasswordReset(rawEmail) {
     try {
       const plain = generateRandomPassword(12);
       await sendPasswordResetEmail({ to: email, username: u.username, password: plain });
-      await usersModel.updateUserFields(u.id, { passwordHash: await hashPassword(plain) });
+      await usersModel.updateUserFields(u.id, {
+        passwordHash: await hashPassword(plain),
+        mustChangePassword: true,
+      });
     } catch (mailErr) {
       console.error('[password-reset]', mailErr);
       return {

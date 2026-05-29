@@ -42,72 +42,7 @@ const PREVIEW_PLACEHOLDER =
   );
 
 /** Catálogo estático (fallback se a API de disco não estiver disponível). */
-const REPORTS_FALLBACK = [
-  {
-    id: 1,
-    title: 'Análise de Services',
-    area: 'MPL · CS',
-    updated: '—',
-    file: 'P:\\2026\\20 - Power BI\\MPL\\CS\\Análise de Services.pbix',
-    preview: 'previews/mpl-cs-analise-de-services.png',
-  },
-  {
-    id: 2,
-    title: 'BI Customer Service Report',
-    area: 'MPL · CS',
-    updated: '—',
-    file: 'P:\\2026\\20 - Power BI\\MPL\\CS\\BI Customer Service Report.pbix',
-    preview: 'previews/mpl-cs-bi-customer-service-report.png',
-  },
-  {
-    id: 3,
-    title: 'Rastreabilidade',
-    area: 'MPL · CS',
-    updated: '—',
-    file: 'P:\\2026\\20 - Power BI\\MPL\\CS\\Rastreabilidade.pbix',
-    preview: 'previews/mpl-cs-rastreabilidade.png',
-  },
-  {
-    id: 4,
-    title: 'Revenue Projection 2',
-    area: 'MPL · CS',
-    updated: '—',
-    file: 'P:\\2026\\20 - Power BI\\MPL\\CS\\Revenue Projection 2.pbix',
-    preview: 'previews/mpl-cs-revenue-projection-2.png',
-  },
-  {
-    id: 5,
-    title: 'Dashboard Obsolescencia (cópia)',
-    area: 'MPL · Inventário',
-    updated: '—',
-    file: 'P:\\2026\\20 - Power BI\\MPL\\Inventário\\Dashboard Obsolescencia - copia.pbix',
-    preview: 'previews/mpl-inventario-dashboard-obsolescencia-copia.png',
-  },
-  {
-    id: 6,
-    title: 'BI Plano SMD RV4',
-    area: 'MPL · PCP',
-    updated: '—',
-    file: 'P:\\2026\\20 - Power BI\\MPL\\PCP\\BI Plano SMD RV4.pbix',
-    preview: 'previews/mpl-pcp-bi-plano-smd-rv4.png',
-  },
-  {
-    id: 7,
-    title: 'BI Plano SMD RV5',
-    area: 'MPL · PCP',
-    updated: '—',
-    file: 'P:\\2026\\20 - Power BI\\MPL\\PCP\\BI Plano SMD RV5.pbix',
-    preview: 'previews/mpl-pcp-bi-plano-smd-rv5.png',
-  },
-  {
-    id: 8,
-    title: 'BI Planejamento',
-    area: 'MPL · PCP',
-    updated: '—',
-    file: 'P:\\2026\\20 - Power BI\\MPL\\PCP\\BI Planejamento.pbix',
-    preview: 'previews/mpl-pcp-bi-planejamento.png',
-  },
-];
+const REPORTS_FALLBACK = [];
 
 /** Diretórios vindos da API `/api/directories` (areaKey). */
 /** @type {{ id:number; areaKey:string }[]} */
@@ -238,6 +173,10 @@ async function loadSession() {
     const r = await fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' });
     if (!r.ok) return false;
     hubSession = await r.json();
+    if (hubSession?.mustChangePassword) {
+      window.location.replace('/auth.html?tab=change-password');
+      return false;
+    }
     return !!hubSession && hubSession.user;
   } catch (_) {
     return false;

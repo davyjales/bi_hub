@@ -2,6 +2,8 @@ const express = require('express');
 const usersModel = require('../models/users');
 const { signToken } = require('../lib/token');
 const { setTokenCookie } = require('../lib/cookies');
+const { hashPassword } = require('../lib/password');
+const { validateNewPasswordPair } = require('../lib/changePassword');
 const { requireAuth } = require('../middleware/resolveUser');
 const { canManageBiFiles } = require('../lib/biPermissions');
 const { requestPasswordReset, isMailConfigured } = require('../lib/passwordReset');
@@ -30,7 +32,24 @@ router.get('/me', requireAuth, async (req, res, next) => {
           ? { type: 'scoped', allowedAreaKeys: keys }
           : { type: 'all' },
       canManageBi: canManageBiFiles(req.authUser.role),
+      mustChangePassword: !!req.authUser.mustChangePassword,
     });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post('/change-password', requireAuth, async (req, res, next) => {
+  try {
+    const validationError = validateNewPasswordPair(req.body?.password, req.body?.password_confirm);
+    if (validationError) {
+      return res.status(400).json({ ok: false, error: validationError });
+    }
+    await usersModel.updateUserFields(req.authUser.id, {
+      passwordHash: await hashPassword(String(req.body.password)),
+      mustChangePassword: false,
+    });
+    return res.json({ ok: true });
   } catch (e) {
     next(e);
   }
@@ -65,6 +84,7 @@ router.post('/login', async (req, res, next) => {
           ? { type: 'scoped', allowedAreaKeys: keys }
           : { type: 'all' },
       canManageBi: canManageBiFiles(u.role),
+      mustChangePassword: !!u.mustChangePassword,
     });
   } catch (e) {
     next(e);

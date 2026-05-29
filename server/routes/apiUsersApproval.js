@@ -1,10 +1,9 @@
 const express = require('express');
 const usersModel = require('../models/users');
-const { requireAuth, requireAdmin } = require('../middleware/resolveUser');
+const { requireAuth, requireAdmin, requirePasswordChanged } = require('../middleware/resolveUser');
 
 const router = express.Router();
-router.use(requireAuth);
-router.use(requireAdmin);
+router.use(requireAuth, requirePasswordChanged, requireAdmin);
 
 router.post('/:id/approve', async (req, res, next) => {
   try {

@@ -5,6 +5,7 @@ const { signToken } = require('../lib/token');
 const { setTokenCookie, clearTokenCookie } = require('../lib/cookies');
 const { normalizeEmail, isValidEmail } = require('../lib/emailValidate');
 const { requestPasswordReset } = require('../lib/passwordReset');
+const { validateNewPasswordPair } = require('../lib/changePassword');
 
 const USERNAME_RE = /^[a-zA-Z0-9._-]{3,64}$/;
 const ROUTE_ROLES = new Set(['viewer_all', 'viewer_area', 'owner_setor']);
@@ -50,6 +51,33 @@ router.post('/login', async (req, res, next) => {
 
     const token = signToken({ userId: u.id, role: u.role });
     setTokenCookie(res, token);
+    if (u.mustChangePassword) {
+      return redirectAuth(res, 'tab=change-password');
+    }
+    res.redirect(302, '/index.html');
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post('/change-password', async (req, res, next) => {
+  try {
+    const tabChange = 'tab=change-password';
+    if (!req.authUser) {
+      return redirectAuth(
+        res,
+        `err=${encodeURIComponent('Sessão expirada. Entre novamente com a palavra-passe temporária.')}`,
+      );
+    }
+    const validationError = validateNewPasswordPair(req.body.password, req.body.password_confirm);
+    if (validationError) {
+      return redirectAuth(res, `err=${encodeURIComponent(validationError)}&${tabChange}`);
+    }
+    const hash = await hashPassword(String(req.body.password));
+    await usersModel.updateUserFields(req.authUser.id, {
+      passwordHash: hash,
+      mustChangePassword: false,
+    });
     res.redirect(302, '/index.html');
   } catch (e) {
     next(e);

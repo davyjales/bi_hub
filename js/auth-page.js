@@ -56,16 +56,19 @@ function showAuthMessages(params) {
 }
 
 function switchTab(which) {
-  document.getElementById('pane-login').classList.toggle('hidden', which !== 'login');
-  document.getElementById('pane-register').classList.toggle('hidden', which !== 'register');
-  document.getElementById('pane-forgot').classList.toggle('hidden', which !== 'forgot');
+  const changeOnly = which === 'change-password';
+  document.getElementById('pane-login')?.classList.toggle('hidden', which !== 'login');
+  document.getElementById('pane-register')?.classList.toggle('hidden', which !== 'register');
+  document.getElementById('pane-forgot')?.classList.toggle('hidden', which !== 'forgot');
+  document.getElementById('pane-change-password')?.classList.toggle('hidden', which !== 'change-password');
+  document.getElementById('auth-tabs')?.classList.toggle('hidden', changeOnly);
 
   const tabLogin = document.getElementById('tab-login');
   const tabRegister = document.getElementById('tab-register');
   const active = 'text-[var(--text-primary)] border-[var(--v-orange)]';
   const idle = 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-primary)]';
 
-  if (tabLogin && tabRegister) {
+  if (tabLogin && tabRegister && !changeOnly) {
     if (which === 'login' || which === 'forgot') {
       tabLogin.className = `flex-1 py-3 text-sm font-semibold border-b-2 ${active}`;
       tabRegister.className = `flex-1 py-3 text-sm font-semibold border-b-2 ${idle}`;
@@ -148,7 +151,8 @@ async function initAuthPage() {
   });
 
   const tab = params.get('tab');
-  if (tab === 'register') switchTab('register');
+  if (tab === 'change-password') switchTab('change-password');
+  else if (tab === 'register') switchTab('register');
   else if (tab === 'forgot') switchTab('forgot');
   else switchTab('login');
 
@@ -175,7 +179,13 @@ async function initAuthPage() {
 
   try {
     const r = await fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' });
-    if (r.ok) window.location.replace('/index.html');
+    if (!r.ok) return;
+    const data = await r.json();
+    if (data.mustChangePassword) {
+      switchTab('change-password');
+      return;
+    }
+    window.location.replace('/index.html');
   } catch (_) {}
 }
 

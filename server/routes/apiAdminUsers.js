@@ -3,14 +3,14 @@ const usersModel = require('../models/users');
 const { hashPassword } = require('../lib/password');
 const { normalizeEmail, isValidEmail } = require('../lib/emailValidate');
 const { pool } = require('../dbPool');
-const { requireAuth, requireAdmin } = require('../middleware/resolveUser');
+const { requireAuth, requireAdmin, requirePasswordChanged } = require('../middleware/resolveUser');
 
 
 const USERNAME_RE = /^[a-zA-Z0-9._-]{3,64}$/;
 const ROLES = new Set(['admin', 'viewer_all', 'viewer_area', 'owner_setor']);
 
 const router = express.Router();
-router.use(requireAuth);
+router.use(requireAuth, requirePasswordChanged);
 router.use(requireAdmin);
 
 async function validatedDirectoryIds(raw) {

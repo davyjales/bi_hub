@@ -45,7 +45,7 @@
         </div>
       </div>
 
-      <div class="flex border-b border-[var(--panel-border)]">
+      <div id="auth-tabs" class="flex border-b border-[var(--panel-border)]">
         <button type="button" id="tab-login" data-switch-login class="flex-1 py-3 text-sm font-semibold text-[var(--text-primary)] border-b-2 border-[var(--v-orange)]">
           Entrar
         </button>
@@ -77,6 +77,26 @@
           Novo utilizador?
           <button type="button" data-switch-register class="hub-muted-link font-semibold">Criar registo</button>
         </p>
+      </div>
+
+      <div id="pane-change-password" class="p-8 space-y-5 hidden">
+        <p class="text-sm text-[var(--text-primary)] leading-relaxed">
+          Utilizou uma palavra-passe temporária. Defina uma nova palavra-passe e confirme-a para entrar no hub.
+        </p>
+        <form method="post" action="/auth/change-password" class="space-y-4">
+          <div class="space-y-1">
+            <label class="text-xs hub-section-label font-semibold uppercase" for="change-password">Nova palavra-passe</label>
+            <input id="change-password" name="password" type="password" required minlength="8" autocomplete="new-password" class="hub-input">
+            <p class="text-[11px] hub-section-label">Mínimo de 8 caracteres.</p>
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs hub-section-label font-semibold uppercase" for="change-password-confirm">Confirmar palavra-passe</label>
+            <input id="change-password-confirm" name="password_confirm" type="password" required minlength="8" autocomplete="new-password" class="hub-input">
+          </div>
+          <button type="submit" class="hub-btn-primary">
+            Guardar e entrar no hub <i class="fa-solid fa-check text-sm opacity-95"></i>
+          </button>
+        </form>
       </div>
 
       <div id="pane-forgot" class="p-8 space-y-5 hidden">

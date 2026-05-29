@@ -10,7 +10,7 @@ const {
   assertCanManageArea,
 } = require('../lib/biPermissions');
 const { relativePathToAreaKey } = require('../lib/areaPaths');
-const { requireAuth } = require('../middleware/resolveUser');
+const { requireAuth, requirePasswordChanged } = require('../middleware/resolveUser');
 const { decodeUploadedFileName } = require('../lib/uploadFilename');
 
 const router = express.Router();
@@ -48,7 +48,8 @@ function handleMulterError(err, _req, res, next) {
 }
 
 /** Lista relatórios .pbix do disco (respeita permissões de visualização). */
-router.get('/reports', requireAuth, async (req, res, next) => {
+router.get('/reports', requireAuth,
+  requirePasswordChanged, async (req, res, next) => {
   try {
     if (!biStorage.storageConfigured()) {
       return res.json({ ok: true, reports: [], storageConfigured: false });
@@ -62,7 +63,8 @@ router.get('/reports', requireAuth, async (req, res, next) => {
 });
 
 /** Áreas em que o utilizador pode inserir/apagar. */
-router.get('/manage-areas', requireAuth, async (req, res, next) => {
+router.get('/manage-areas', requireAuth,
+  requirePasswordChanged, async (req, res, next) => {
   try {
     const canManage = canManageBiFiles(req.authUser.role);
     if (!canManage) {
@@ -82,6 +84,7 @@ router.get('/manage-areas', requireAuth, async (req, res, next) => {
 router.post(
   '/upload',
   requireAuth,
+  requirePasswordChanged,
   (req, res, next) => {
     const mw = (req2, res2, next2) => upload.fields([{ name: 'file', maxCount: 1 }, { name: 'preview', maxCount: 1 }])(req2, res2, next2);
     mw(req, res, (err) => {
@@ -129,6 +132,7 @@ router.post(
 router.patch(
   '/file',
   requireAuth,
+  requirePasswordChanged,
   (req, res, next) => {
     const mw = (req2, res2, next2) =>
       uploadPreview.single('preview')(req2, res2, next2);
@@ -191,7 +195,8 @@ router.patch(
   },
 );
 
-router.post('/move', requireAuth, async (req, res, next) => {
+router.post('/move', requireAuth,
+  requirePasswordChanged, async (req, res, next) => {
   try {
     if (!biStorage.storageConfigured()) {
       return res.status(503).json({ ok: false, error: 'BI_STORAGE_ROOT não configurado no servidor.' });
@@ -233,7 +238,8 @@ router.post('/move', requireAuth, async (req, res, next) => {
   }
 });
 
-router.delete('/file', requireAuth, async (req, res, next) => {
+router.delete('/file', requireAuth,
+  requirePasswordChanged, async (req, res, next) => {
   try {
     if (!biStorage.storageConfigured()) {
       return res.status(503).json({ ok: false, error: 'BI_STORAGE_ROOT não configurado no servidor.' });
@@ -259,7 +265,8 @@ router.delete('/file', requireAuth, async (req, res, next) => {
 });
 
 /** Histórico: admin e viewer_all vêem tudo; owner_setor vê as suas áreas. */
-router.get('/history', requireAuth, async (req, res, next) => {
+router.get('/history', requireAuth,
+  requirePasswordChanged, async (req, res, next) => {
   try {
     if (!canManageBiFiles(req.authUser.role)) {
       return res.status(403).json({ ok: false, error: 'Sem permissão.' });

@@ -1,7 +1,7 @@
 const express = require('express');
 const dirs = require('../models/directories');
 const directoryAudit = require('../models/directoryAudit');
-const { requireAuth, requireAdmin } = require('../middleware/resolveUser');
+const { requireAuth, requireAdmin, requirePasswordChanged } = require('../middleware/resolveUser');
 
 const router = express.Router();
 
@@ -13,7 +13,7 @@ async function logDirectoryAudit(entry) {
   }
 }
 
-router.get('/history', requireAuth, requireAdmin, async (req, res, next) => {
+router.get('/history', requireAuth, requirePasswordChanged, requireAdmin, async (req, res, next) => {
   try {
     const limit = req.query.limit;
     const entries = await directoryAudit.listEntries({ limit });
@@ -36,7 +36,7 @@ router.get('/', async (_req, res, next) => {
   }
 });
 
-router.post('/', requireAuth, requireAdmin, async (req, res, next) => {
+router.post('/', requireAuth, requirePasswordChanged, requireAdmin, async (req, res, next) => {
   try {
     const areaKey = String(req.body?.areaKey || '').trim();
     const created = await dirs.createDirectory(areaKey);
@@ -54,7 +54,7 @@ router.post('/', requireAuth, requireAdmin, async (req, res, next) => {
   }
 });
 
-router.patch('/:id', requireAuth, requireAdmin, async (req, res, next) => {
+router.patch('/:id', requireAuth, requirePasswordChanged, requireAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     const areaKey = String(req.body?.areaKey || '').trim();
@@ -74,7 +74,7 @@ router.patch('/:id', requireAuth, requireAdmin, async (req, res, next) => {
   }
 });
 
-router.delete('/:id', requireAuth, requireAdmin, async (req, res, next) => {
+router.delete('/:id', requireAuth, requirePasswordChanged, requireAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     const removed = await dirs.deleteDirectory(id);

@@ -275,6 +275,10 @@
 
     try {
       const me = await fetchJson('/api/auth/me');
+      if (me?.mustChangePassword) {
+        window.location.replace('/auth.html?tab=change-password');
+        return;
+      }
       okAdmin = me && me.user && me.user.role === 'admin';
     } catch (_) {
       okAdmin = false;

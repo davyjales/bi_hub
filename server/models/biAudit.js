@@ -29,10 +29,10 @@ async function listEntries({ limit = 100, userId = null, areaKeys = null } = {})
       vals.push(k);
 
       if (k === 'MPL') {
-        ors.push('area_key LIKE ? ESCAPE \'\\\'');
+        ors.push("area_key LIKE ? ESCAPE '\\\\'");
         vals.push('MPL · %');
       } else {
-        ors.push('area_key LIKE ? ESCAPE \'\\\'');
+        ors.push("area_key LIKE ? ESCAPE '\\\\'");
         vals.push(escapeLike(k) + '/%');
       }
     }

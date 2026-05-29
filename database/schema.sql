@@ -23,6 +23,7 @@ CREATE TABLE users (
   password_hash VARCHAR(255) NOT NULL,
   role ENUM('admin', 'viewer_all', 'viewer_area', 'owner_setor') NOT NULL,
   status ENUM('pending', 'approved') NOT NULL DEFAULT 'pending',
+  must_change_password TINYINT(1) NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
